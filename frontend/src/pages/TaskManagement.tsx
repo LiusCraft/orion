@@ -1,157 +1,165 @@
-import React, { useState } from 'react'
-import { 
-  Table, 
-  Card, 
-  Button, 
-  Space, 
-  Tag, 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
+import React, { useState } from "react";
+import {
+  Table,
+  Card,
+  Button,
+  Space,
+  Tag,
+  Modal,
+  Form,
+  Input,
+  Select,
   DatePicker,
-  message 
-} from 'antd'
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
-import { GuardDutyTask } from '../types'
+  message,
+} from "antd";
+import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import { GuardDutyTask } from "../types";
 
-const { Option } = Select
-const { RangePicker } = DatePicker
+const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 const TaskManagement: React.FC = () => {
-  const [isModalVisible, setIsModalVisible] = useState(false)
-  const [searchText, setSearchText] = useState('')
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [searchText, setSearchText] = useState("");
 
   const tasks: GuardDutyTask[] = [
     {
-      id: '1',
-      name: '用户服务发布保障',
-      application: 'user-service',
-      status: 'running',
+      id: "1",
+      name: "用户服务发布保障",
+      application: "user-service",
+      status: "running",
       startTime: new Date().toISOString(),
       endTime: new Date(Date.now() + 3600000).toISOString(),
       duration: 30,
       metrics: [],
       alerts: [],
-      deploymentId: 'DEP-2024-001',
-      createdBy: '张三'
+      deploymentId: "DEP-2024-001",
+      createdBy: "张三",
     },
     {
-      id: '2',
-      name: '订单服务配置变更',
-      application: 'order-service',
-      status: 'warning',
+      id: "2",
+      name: "订单服务配置变更",
+      application: "order-service",
+      status: "warning",
       startTime: new Date().toISOString(),
       endTime: new Date(Date.now() + 7200000).toISOString(),
       duration: 45,
       metrics: [],
       alerts: [
         {
-          id: 'alert-1',
-          severity: 'P1',
-          message: '响应时间超过阈值',
+          id: "alert-1",
+          severity: "P1",
+          message: "响应时间超过阈值",
           timestamp: new Date().toISOString(),
           acknowledged: false,
-          source: 'Prometheus',
-          metricName: 'response_time'
-        }
+          source: "Prometheus",
+          metricName: "response_time",
+        },
       ],
-      createdBy: '李四'
+      createdBy: "李四",
     },
     {
-      id: '3',
-      name: '支付服务紧急修复',
-      application: 'payment-service',
-      status: 'completed',
+      id: "3",
+      name: "支付服务紧急修复",
+      application: "payment-service",
+      status: "completed",
       startTime: new Date(Date.now() - 86400000).toISOString(),
       endTime: new Date(Date.now() - 82800000).toISOString(),
       duration: 60,
       metrics: [],
       alerts: [],
-      deploymentId: 'DEP-2024-002',
-      createdBy: '王五'
-    }
-  ]
+      deploymentId: "DEP-2024-002",
+      createdBy: "王五",
+    },
+  ];
 
   const getStatusTag = (status: string) => {
     const statusConfig = {
-      running: { color: 'blue', text: '运行中' },
-      completed: { color: 'green', text: '已完成' },
-      warning: { color: 'orange', text: '警告' },
-      critical: { color: 'red', text: '严重' }
-    }
-    const config = statusConfig[status as keyof typeof statusConfig]
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+      running: { color: "blue", text: "运行中" },
+      completed: { color: "green", text: "已完成" },
+      warning: { color: "orange", text: "警告" },
+      critical: { color: "red", text: "严重" },
+    };
+    const config = statusConfig[status as keyof typeof statusConfig];
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const columns = [
     {
-      title: '任务名称',
-      dataIndex: 'name',
-      key: 'name',
+      title: "任务名称",
+      dataIndex: "name",
+      key: "name",
       render: (text: string, record: GuardDutyTask) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{text}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>
+          <div style={{ fontWeight: "bold" }}>{text}</div>
+          <div style={{ fontSize: "12px", color: "#666" }}>
             {record.application}
           </div>
         </div>
-      )
+      ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => getStatusTag(status)
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (status: string) => getStatusTag(status),
     },
     {
-      title: '持续时间',
-      dataIndex: 'duration',
-      key: 'duration',
-      render: (duration: number) => `${duration}分钟`
+      title: "持续时间",
+      dataIndex: "duration",
+      key: "duration",
+      render: (duration: number) => `${duration}分钟`,
     },
     {
-      title: '创建人',
-      dataIndex: 'createdBy',
-      key: 'createdBy'
+      title: "创建人",
+      dataIndex: "createdBy",
+      key: "createdBy",
     },
     {
-      title: '开始时间',
-      dataIndex: 'startTime',
-      key: 'startTime',
-      render: (time: string) => new Date(time).toLocaleString()
+      title: "开始时间",
+      dataIndex: "startTime",
+      key: "startTime",
+      render: (time: string) => new Date(time).toLocaleString(),
     },
     {
-      title: '操作',
-      key: 'actions',
-      render: (_, record: GuardDutyTask) => (
+      title: "操作",
+      key: "actions",
+      render: (_: any, record: GuardDutyTask) => (
         <Space size="middle">
           <a>查看</a>
           <a>编辑</a>
-          {record.status === 'running' && <a style={{ color: '#ff4d4f' }}>终止</a>}
+          {record.status === "running" && (
+            <a style={{ color: "#ff4d4f" }}>终止</a>
+          )}
         </Space>
-      )
-    }
-  ]
+      ),
+    },
+  ];
 
   const showCreateModal = () => {
-    setIsModalVisible(true)
-  }
+    setIsModalVisible(true);
+  };
 
   const handleCreate = () => {
-    message.success('任务创建成功')
-    setIsModalVisible(false)
-  }
+    message.success("任务创建成功");
+    setIsModalVisible(false);
+  };
 
   const handleCancel = () => {
-    setIsModalVisible(false)
-  }
+    setIsModalVisible(false);
+  };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: "24px" }}>
       <Card>
         {/* 搜索和操作栏 */}
-        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            marginBottom: "16px",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
           <Space>
             <Input
               placeholder="搜索任务名称或应用"
@@ -169,7 +177,11 @@ const TaskManagement: React.FC = () => {
             <RangePicker showTime />
           </Space>
 
-          <Button type="primary" icon={<PlusOutlined />} onClick={showCreateModal}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={showCreateModal}
+          >
             新建任务
           </Button>
         </div>
@@ -184,7 +196,7 @@ const TaskManagement: React.FC = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) =>
-              `第 ${range[0]}-${range[1]} 条，共 ${total} 条`
+              `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
           }}
         />
       </Card>
@@ -201,7 +213,7 @@ const TaskManagement: React.FC = () => {
           <Form.Item label="任务名称" required>
             <Input placeholder="请输入任务名称" />
           </Form.Item>
-          
+
           <Form.Item label="应用服务" required>
             <Select placeholder="请选择应用服务">
               <Option value="user-service">用户服务</Option>
@@ -234,7 +246,7 @@ const TaskManagement: React.FC = () => {
           </Form.Item>
 
           <Form.Item label="通知渠道">
-            <Select mode="multiple" defaultValue={['dingtalk']}>
+            <Select mode="multiple" defaultValue={["dingtalk"]}>
               <Option value="dingtalk">钉钉</Option>
               <Option value="sms">短信</Option>
               <Option value="email">邮件</Option>
@@ -244,7 +256,7 @@ const TaskManagement: React.FC = () => {
         </Form>
       </Modal>
     </div>
-  )
-}
+  );
+};
 
-export default TaskManagement
+export default TaskManagement;

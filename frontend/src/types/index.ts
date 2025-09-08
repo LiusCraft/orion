@@ -2,7 +2,7 @@ export interface GuardDutyTask {
   id: string;
   name: string;
   application: string;
-  status: 'running' | 'completed' | 'warning' | 'critical';
+  status: "running" | "completed" | "warning" | "critical";
   startTime: string;
   endTime: string;
   duration: number;
@@ -17,13 +17,13 @@ export interface Metric {
   value: number;
   baseline: number;
   threshold: number;
-  status: 'normal' | 'warning' | 'critical';
+  status: "normal" | "warning" | "critical";
   timestamp: string;
 }
 
 export interface Alert {
   id: string;
-  severity: 'P0' | 'P1' | 'P2' | 'P3';
+  severity: "P0" | "P1" | "P2" | "P3";
   message: string;
   timestamp: string;
   acknowledged: boolean;
@@ -33,7 +33,7 @@ export interface Alert {
 
 export interface Notification {
   id: string;
-  type: 'alert' | 'action' | 'info';
+  type: "alert" | "action" | "info";
   message: string;
   timestamp: string;
   read: boolean;
@@ -42,8 +42,8 @@ export interface Notification {
 
 export interface Action {
   id: string;
-  type: 'rollback' | 'scale' | 'restart' | 'pause';
-  status: 'pending' | 'approved' | 'executing' | 'completed' | 'failed';
+  type: "rollback" | "scale" | "restart" | "pause";
+  status: "pending" | "approved" | "executing" | "completed" | "failed";
   taskId: string;
   requestedBy?: string;
   requestedAt: string;
