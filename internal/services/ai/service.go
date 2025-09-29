@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cloudwego/eino/components/model"
-	"github.com/cloudwego/eino/schema"
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
 
 	"github.com/cdnagent/cdnagent/internal/config"
 	dbmodels "github.com/cdnagent/cdnagent/internal/database/models"
@@ -16,13 +16,13 @@ import (
 
 // AIService AI服务接口
 type AIService struct {
-	chatModel  model.ChatModel
-	config     *config.LLMConfig
+	chatModel model.ChatModel
+	config    *config.LLMConfig
 }
 
 // ChatMessage 标准化的聊天消息格式
 type ChatMessage struct {
-	Role     string                 `json:"role"`    // system, user, assistant
+	Role     string                 `json:"role"` // system, user, assistant
 	Content  string                 `json:"content"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -38,9 +38,9 @@ type ChatResponse struct {
 // StreamChunk 流式响应块
 type StreamChunk struct {
 	ID           string                 `json:"id"`
-	Content      string                 `json:"content"`   // 完整内容
-	Delta        string                 `json:"delta"`     // 增量内容
-	Finished     bool                   `json:"finished"`  // 是否结束
+	Content      string                 `json:"content"`  // 完整内容
+	Delta        string                 `json:"delta"`    // 增量内容
+	Finished     bool                   `json:"finished"` // 是否结束
 	TokenCount   int                    `json:"token_count,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 	Error        error                  `json:"error,omitempty"`
@@ -118,9 +118,9 @@ func createClaudeModel(config *config.LLMConfig) (model.ChatModel, error) {
 // createOpenAIModel 创建OpenAI模型
 func createOpenAIModel(config *config.LLMConfig) (model.ChatModel, error) {
 	openaiConfig := &openai.ChatModelConfig{
-		APIKey:    config.APIKey,
-		Model:     config.Model,
-		BaseURL:   config.BaseURL,
+		APIKey:  config.APIKey,
+		Model:   config.Model,
+		BaseURL: config.BaseURL,
 	}
 
 	if config.MaxTokens > 0 {
@@ -258,9 +258,9 @@ func (s *AIService) ChatStream(ctx context.Context, messages []ChatMessage, opts
 				fullContent += delta
 
 				chunkChan <- StreamChunk{
-					ID:      chunkID,
-					Content: fullContent,
-					Delta:   delta,
+					ID:       chunkID,
+					Content:  fullContent,
+					Delta:    delta,
 					Finished: false,
 				}
 			}

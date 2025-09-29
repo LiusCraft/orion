@@ -6,11 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/ai"
 	"github.com/cdnagent/cdnagent/internal/api/handlers"
 	"github.com/cdnagent/cdnagent/internal/api/middleware"
 	"github.com/cdnagent/cdnagent/internal/api/routes"
 	"github.com/cdnagent/cdnagent/internal/config"
+	"github.com/cdnagent/cdnagent/internal/services/ai"
 )
 
 type Server struct {

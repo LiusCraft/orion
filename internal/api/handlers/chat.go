@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/ai"
 	"github.com/cdnagent/cdnagent/internal/database/models"
+	"github.com/cdnagent/cdnagent/internal/services/ai"
 	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
 )
 
@@ -29,7 +29,7 @@ func NewChatHandler(db *gorm.DB, aiService *ai.AIService) *ChatHandler {
 }
 
 type CreateConversationRequest struct {
-	Title   string      `json:"title"`
+	Title   string         `json:"title"`
 	Context models.JSONMap `json:"context"`
 }
 
@@ -39,29 +39,29 @@ type SendMessageRequest struct {
 }
 
 type ConversationResponse struct {
-	ID              uuid.UUID       `json:"id"`
-	Title           string          `json:"title"`
-	Context         models.JSONMap  `json:"context"`
-	Status          string          `json:"status"`
-	TotalMessages   int             `json:"totalMessages"`
-	LastMessageAt   *time.Time      `json:"lastMessageAt"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	ID            uuid.UUID      `json:"id"`
+	Title         string         `json:"title"`
+	Context       models.JSONMap `json:"context"`
+	Status        string         `json:"status"`
+	TotalMessages int            `json:"totalMessages"`
+	LastMessageAt *time.Time     `json:"lastMessageAt"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
 }
 
 type MessageResponse struct {
-	ID               uuid.UUID       `json:"id"`
-	ConversationID   uuid.UUID       `json:"conversationId"`
-	ParentMessageID  *uuid.UUID      `json:"parentMessageId"`
-	SenderType       string          `json:"senderType"`
-	Content          string          `json:"content"`
-	ContentType      string          `json:"contentType"`
-	Metadata         models.JSONMap  `json:"metadata"`
-	TokenCount       *int            `json:"tokenCount"`
-	ProcessingTimeMs *int            `json:"processingTimeMs"`
-	Status           string          `json:"status"`
-	ErrorMessage     string          `json:"errorMessage"`
-	CreatedAt        time.Time       `json:"createdAt"`
+	ID               uuid.UUID      `json:"id"`
+	ConversationID   uuid.UUID      `json:"conversationId"`
+	ParentMessageID  *uuid.UUID     `json:"parentMessageId"`
+	SenderType       string         `json:"senderType"`
+	Content          string         `json:"content"`
+	ContentType      string         `json:"contentType"`
+	Metadata         models.JSONMap `json:"metadata"`
+	TokenCount       *int           `json:"tokenCount"`
+	ProcessingTimeMs *int           `json:"processingTimeMs"`
+	Status           string         `json:"status"`
+	ErrorMessage     string         `json:"errorMessage"`
+	CreatedAt        time.Time      `json:"createdAt"`
 }
 
 // SSE事件类型
@@ -72,7 +72,7 @@ type SSEEvent struct {
 
 func (h *ChatHandler) CreateConversation(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	var req CreateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
@@ -116,7 +116,7 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 
 func (h *ChatHandler) GetConversations(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -166,10 +166,10 @@ func (h *ChatHandler) GetConversations(c *gin.Context) {
 	result := map[string]interface{}{
 		"data": responses,
 		"pagination": map[string]interface{}{
-			"page":       page,
-			"pageSize":   pageSize,
-			"total":      total,
-			"totalPage":  (total + int64(pageSize) - 1) / int64(pageSize),
+			"page":      page,
+			"pageSize":  pageSize,
+			"total":     total,
+			"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
 		},
 	}
 
@@ -271,10 +271,10 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 	result := map[string]interface{}{
 		"data": responses,
 		"pagination": map[string]interface{}{
-			"page":       page,
-			"pageSize":   pageSize,
-			"total":      total,
-			"totalPage":  (total + int64(pageSize) - 1) / int64(pageSize),
+			"page":      page,
+			"pageSize":  pageSize,
+			"total":     total,
+			"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
 		},
 	}
 
@@ -329,7 +329,7 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	// 更新对话信息
 	now := time.Now()
 	h.db.Model(&conversation).Updates(map[string]interface{}{
-		"total_messages":   gorm.Expr("total_messages + 1"),
+		"total_messages":  gorm.Expr("total_messages + 1"),
 		"last_message_at": now,
 		"updated_at":      now,
 	})
@@ -390,13 +390,13 @@ func (h *ChatHandler) StreamMessages(c *gin.Context) {
 
 	// 创建AI消息记录
 	aiMessage := models.Message{
-		ID:               uuid.New(),
-		ConversationID:   conversation.ID,
-		ParentMessageID:  &lastUserMessage.ID,
-		SenderType:       "ai",
-		Content:          "",
-		ContentType:      "text",
-		Status:           "streaming",
+		ID:              uuid.New(),
+		ConversationID:  conversation.ID,
+		ParentMessageID: &lastUserMessage.ID,
+		SenderType:      "ai",
+		Content:         "",
+		ContentType:     "text",
+		Status:          "streaming",
 	}
 
 	if err := h.db.Create(&aiMessage).Error; err != nil {
@@ -504,16 +504,16 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 	// 更新数据库中的AI消息
 	processingTime := 1500 // 实际处理时间
 	h.db.Model(&message).Updates(map[string]interface{}{
-		"content":             fullContent,
-		"status":              "completed",
-		"token_count":         finalTokenCount,
-		"processing_time_ms":  processingTime,
+		"content":            fullContent,
+		"status":             "completed",
+		"token_count":        finalTokenCount,
+		"processing_time_ms": processingTime,
 	})
 
 	// 更新对话统计
 	h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
 		Updates(map[string]interface{}{
-			"total_messages":   gorm.Expr("total_messages + 1"),
+			"total_messages":  gorm.Expr("total_messages + 1"),
 			"last_message_at": time.Now(),
 		})
 
@@ -590,19 +590,19 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 
 	// 更新消息内容
 	tokenCount := len(fullContent) / 4 // 简单估算token数
-	processingTime := 1500              // 模拟处理时间
+	processingTime := 1500             // 模拟处理时间
 
 	h.db.Model(&message).Updates(map[string]interface{}{
-		"content":             fullContent,
-		"status":              "completed",
-		"token_count":         tokenCount,
-		"processing_time_ms":  processingTime,
+		"content":            fullContent,
+		"status":             "completed",
+		"token_count":        tokenCount,
+		"processing_time_ms": processingTime,
 	})
 
 	// 更新对话统计
 	h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
 		Updates(map[string]interface{}{
-			"total_messages":   gorm.Expr("total_messages + 1"),
+			"total_messages":  gorm.Expr("total_messages + 1"),
 			"last_message_at": time.Now(),
 		})
 
@@ -724,13 +724,13 @@ func (h *ChatHandler) RegenerateMessage(c *gin.Context) {
 
 	// 创建新的AI消息记录
 	newAIMessage := models.Message{
-		ID:               uuid.New(),
-		ConversationID:   conversation.ID,
-		ParentMessageID:  message.ParentMessageID,
-		SenderType:       "ai",
-		Content:          "",
-		ContentType:      "text",
-		Status:           "streaming",
+		ID:              uuid.New(),
+		ConversationID:  conversation.ID,
+		ParentMessageID: message.ParentMessageID,
+		SenderType:      "ai",
+		Content:         "",
+		ContentType:     "text",
+		Status:          "streaming",
 	}
 
 	if err := h.db.Create(&newAIMessage).Error; err != nil {
