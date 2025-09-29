@@ -66,11 +66,8 @@ export const chatService = {
   },
 
   // 创建SSE连接进行流式对话
-  createChatStream(conversationId: string, messageData: SendMessageRequest): EventSource {
-    // 首先发送消息，然后创建SSE连接
-    this.sendMessage(conversationId, messageData).catch(console.error)
-    
-    // 创建SSE连接接收流式响应
+  createChatStream(conversationId: string): EventSource {
+    // 直接创建SSE连接接收流式响应，不再发送消息（消息已在前端发送）
     return apiClient.createEventSource(`/conversations/${conversationId}/stream`)
   },
 
