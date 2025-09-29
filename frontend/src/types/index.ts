@@ -115,6 +115,9 @@ export interface Tool {
   toolType: string
   config: Record<string, unknown>
   enabled: boolean
+  lastStatus?: string
+  lastExecutedAt?: string
+  executionCount?: number
   createdBy?: string
   createdAt: string
   updatedAt: string
@@ -128,8 +131,11 @@ export interface ToolExecution {
   inputParams: Record<string, unknown>
   outputResult?: Record<string, unknown>
   executionTimeMs?: number
+  duration?: number
   status: string
   errorMessage?: string
+  error?: string
+  executedAt: string
   createdAt: string
 }
 

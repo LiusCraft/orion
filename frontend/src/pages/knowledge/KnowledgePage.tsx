@@ -19,7 +19,8 @@ import {
   List,
   Avatar,
   Divider,
-  Statistic
+  Statistic,
+  Spin
 } from 'antd'
 import { 
   FileTextOutlined, 
@@ -36,146 +37,98 @@ import {
   BookOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { knowledgeService, type KnowledgeSearchParams } from '../../services/knowledgeService'
+import type { KnowledgeCategory, KnowledgeDocument } from '../../types'
 
 const { Title, Text, Paragraph } = Typography
 const { Search } = Input
 const { TabPane } = Tabs
 const { Option } = Select
 
-interface KnowledgeItem {
-  id: string
-  title: string
-  content: string
-  category: string
-  tags: string[]
-  author: string
-  createdAt: Date
-  updatedAt: Date
-  version: string
-  status: 'draft' | 'published' | 'archived'
-  views: number
-  likes: number
-  size: number
-  type: 'document' | 'tutorial' | 'faq' | 'guide'
-  isStarred?: boolean
-}
-
-interface Category {
-  key: string
-  title: string
-  children?: Category[]
-}
-
 const KnowledgePage: React.FC = () => {
-  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([
-    {
-      id: '1',
-      title: 'CDN基础配置指南',
-      content: 'CDN配置的基础知识和最佳实践...',
-      category: 'configuration',
-      tags: ['配置', '基础', '入门'],
-      author: '张三',
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-20'),
-      version: 'v1.2',
-      status: 'published',
-      views: 1250,
-      likes: 45,
-      size: 15600,
-      type: 'guide',
-      isStarred: true
-    },
-    {
-      id: '2',
-      title: '缓存策略优化',
-      content: '如何优化CDN缓存策略以提升性能...',
-      category: 'optimization',
-      tags: ['缓存', '性能', '优化'],
-      author: '李四',
-      createdAt: new Date('2024-02-01'),
-      updatedAt: new Date('2024-02-01'),
-      version: 'v1.0',
-      status: 'published',
-      views: 856,
-      likes: 32,
-      size: 12300,
-      type: 'tutorial'
-    },
-    {
-      id: '3',
-      title: '常见故障排查FAQ',
-      content: 'CDN常见问题的快速解决方案...',
-      category: 'troubleshooting',
-      tags: ['故障', 'FAQ', '排查'],
-      author: '王五',
-      createdAt: new Date('2024-01-28'),
-      updatedAt: new Date('2024-02-05'),
-      version: 'v1.1',
-      status: 'published',
-      views: 2100,
-      likes: 78,
-      size: 8900,
-      type: 'faq'
-    },
-    {
-      id: '4',
-      title: 'HTTPS配置完整教程',
-      content: '从零开始配置CDN的HTTPS支持...',
-      category: 'security',
-      tags: ['HTTPS', '安全', '证书'],
-      author: '赵六',
-      createdAt: new Date('2024-02-10'),
-      updatedAt: new Date('2024-02-10'),
-      version: 'v1.0',
-      status: 'draft',
-      views: 0,
-      likes: 0,
-      size: 18700,
-      type: 'tutorial'
-    }
-  ])
-
-  const [categories] = useState<Category[]>([
-    {
-      key: 'configuration',
-      title: '配置管理',
-      children: [
-        { key: 'basic-config', title: '基础配置' },
-        { key: 'advanced-config', title: '高级配置' }
-      ]
-    },
-    {
-      key: 'optimization',
-      title: '性能优化',
-      children: [
-        { key: 'cache-optimization', title: '缓存优化' },
-        { key: 'network-optimization', title: '网络优化' }
-      ]
-    },
-    {
-      key: 'security',
-      title: '安全管理',
-      children: [
-        { key: 'ssl-config', title: 'SSL配置' },
-        { key: 'access-control', title: '访问控制' }
-      ]
-    },
-    {
-      key: 'troubleshooting',
-      title: '故障排查',
-      children: [
-        { key: 'common-issues', title: '常见问题' },
-        { key: 'monitoring', title: '监控告警' }
-      ]
-    }
-  ])
-
-  const [selectedCategory, setSelectedCategory] = useState<string>('')
-  const [searchText, setSearchText] = useState('')
+  const [searchParams, setSearchParams] = useState<KnowledgeSearchParams>({})
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null)
+  const [selectedItem, setSelectedItem] = useState<KnowledgeDocument | null>(null)
   const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  // 获取分类列表
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['knowledge-categories'],
+    queryFn: knowledgeService.getCategories
+  })
+
+  // 搜索文档
+  const { data: documentsData, isLoading: documentsLoading } = useQuery({
+    queryKey: ['knowledge-documents', searchParams],
+    queryFn: () => knowledgeService.searchDocuments(searchParams)
+  })
+
+  // 获取统计信息
+  const { data: statistics, isLoading: statsLoading } = useQuery({
+    queryKey: ['knowledge-statistics'],
+    queryFn: knowledgeService.getStatistics
+  })
+
+  // 获取最近文档
+  const { data: recentDocuments } = useQuery({
+    queryKey: ['knowledge-recent'],
+    queryFn: () => knowledgeService.getRecentDocuments(5)
+  })
+
+  // 创建文档
+  const createDocumentMutation = useMutation({
+    mutationFn: knowledgeService.createDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['knowledge-statistics'] })
+      message.success('创建文档成功')
+      setEditModalVisible(false)
+      form.resetFields()
+    },
+    onError: () => {
+      message.error('创建文档失败')
+    }
+  })
+
+  // 更新文档
+  const updateDocumentMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => 
+      knowledgeService.updateDocument(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] })
+      message.success('更新文档成功')
+      setEditModalVisible(false)
+      form.resetFields()
+    },
+    onError: () => {
+      message.error('更新文档失败')
+    }
+  })
+
+  // 删除文档
+  const deleteDocumentMutation = useMutation({
+    mutationFn: knowledgeService.deleteDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['knowledge-statistics'] })
+      message.success('删除文档成功')
+    },
+    onError: () => {
+      message.error('删除文档失败')
+    }
+  })
+
+  // 点赞/取消点赞
+  const toggleLikeMutation = useMutation({
+    mutationFn: ({ id, isLiked }: { id: string, isLiked: boolean }) => 
+      isLiked ? knowledgeService.unlikeDocument(id) : knowledgeService.likeDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] })
+    }
+  })
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -205,39 +158,40 @@ const KnowledgePage: React.FC = () => {
     }
   }
 
-  const filteredItems = knowledgeItems.filter(item => {
-    const matchesCategory = !selectedCategory || item.category === selectedCategory
-    const matchesSearch = !searchText || 
-      item.title.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.tags.some(tag => tag.toLowerCase().includes(searchText.toLowerCase()))
-    return matchesCategory && matchesSearch
-  })
-
-  const handleStarToggle = (itemId: string) => {
-    setKnowledgeItems(prev => 
-      prev.map(item => 
-        item.id === itemId 
-          ? { ...item, isStarred: !item.isStarred }
-          : item
-      )
-    )
+  const handleSearch = (keyword: string) => {
+    setSearchParams(prev => ({ ...prev, keyword, page: 1 }))
   }
 
-  const handleEdit = (item: KnowledgeItem) => {
+  const handleCategorySelect = (selectedKeys: React.Key[]) => {
+    const categoryId = selectedKeys[0] as string
+    setSearchParams(prev => ({ ...prev, categoryId, page: 1 }))
+  }
+
+  const handleStarToggle = (document: KnowledgeDocument) => {
+    // 这里需要实现收藏功能的API
+    toggleLikeMutation.mutate({ 
+      id: document.id, 
+      isLiked: document.likeCount > 0 // 简化判断
+    })
+  }
+
+  const handleEdit = (item: KnowledgeDocument) => {
     setSelectedItem(item)
     form.setFieldsValue({
       title: item.title,
       content: item.content,
-      category: item.category,
+      categoryId: item.categoryId,
       tags: item.tags,
-      type: item.type,
+      summary: item.summary,
       status: item.status
     })
     setEditModalVisible(true)
   }
 
-  const handlePreview = (item: KnowledgeItem) => {
+  const handlePreview = (item: KnowledgeDocument) => {
     setSelectedItem(item)
+    // 增加浏览次数
+    knowledgeService.incrementViewCount(item.id)
     setPreviewModalVisible(true)
   }
 
@@ -246,10 +200,33 @@ const KnowledgePage: React.FC = () => {
       title: '确认删除',
       content: '确定要删除这个知识条目吗？此操作不可恢复。',
       onOk: () => {
-        setKnowledgeItems(prev => prev.filter(item => item.id !== itemId))
-        message.success('删除成功')
+        deleteDocumentMutation.mutate(itemId)
       }
     })
+  }
+
+  const handleSaveDocument = () => {
+    form.validateFields().then(values => {
+      if (selectedItem) {
+        // 更新文档
+        updateDocumentMutation.mutate({
+          id: selectedItem.id,
+          data: values
+        })
+      } else {
+        // 创建文档
+        createDocumentMutation.mutate(values)
+      }
+    })
+  }
+
+  // 构建分类树数据
+  const buildCategoryTree = (categories: KnowledgeCategory[] = []): any[] => {
+    return categories.map(cat => ({
+      key: cat.id,
+      title: cat.name,
+      children: cat.children ? buildCategoryTree(cat.children) : undefined
+    }))
   }
 
   const columns = [
@@ -257,16 +234,16 @@ const KnowledgePage: React.FC = () => {
       title: '标题',
       dataIndex: 'title',
       key: 'title',
-      render: (text: string, record: KnowledgeItem) => (
+      render: (text: string, record: KnowledgeDocument) => (
         <Space>
-          {getTypeIcon(record.type)}
+          {getTypeIcon(record.contentType)}
           <span 
             style={{ cursor: 'pointer', color: '#1890ff' }}
             onClick={() => handlePreview(record)}
           >
             {text}
           </span>
-          {record.isStarred && <StarFilled style={{ color: '#faad14' }} />}
+          <StarFilled style={{ color: '#faad14' }} />
         </Space>
       )
     },
@@ -274,10 +251,9 @@ const KnowledgePage: React.FC = () => {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      render: (category: string) => {
-        const categoryObj = categories.find(c => c.key === category)
-        return <Tag>{categoryObj?.title || category}</Tag>
-      }
+      render: (category: KnowledgeCategory) => (
+        <Tag>{category?.name || '未分类'}</Tag>
+      )
     },
     {
       title: '标签',
@@ -302,23 +278,24 @@ const KnowledgePage: React.FC = () => {
     {
       title: '作者',
       dataIndex: 'author',
-      key: 'author'
+      key: 'author',
+      render: (author: any) => author?.displayName || '未知'
     },
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
       key: 'updatedAt',
-      render: (date: Date) => date.toLocaleDateString('zh-CN')
+      render: (date: string) => new Date(date).toLocaleDateString('zh-CN')
     },
     {
       title: '查看次数',
-      dataIndex: 'views',
-      key: 'views'
+      dataIndex: 'viewCount',
+      key: 'viewCount'
     },
     {
       title: '操作',
       key: 'actions',
-      render: (_: any, record: KnowledgeItem) => (
+      render: (_: any, record: KnowledgeDocument) => (
         <Space>
           <Button 
             type="text" 
@@ -327,9 +304,8 @@ const KnowledgePage: React.FC = () => {
           />
           <Button 
             type="text" 
-            icon={record.isStarred ? <StarFilled /> : <StarOutlined />}
-            onClick={() => handleStarToggle(record.id)}
-            style={{ color: record.isStarred ? '#faad14' : undefined }}
+            icon={<StarOutlined />}
+            onClick={() => handleStarToggle(record)}
           />
           <Button 
             type="text" 
@@ -341,6 +317,7 @@ const KnowledgePage: React.FC = () => {
             icon={<DeleteOutlined />}
             danger
             onClick={() => handleDelete(record.id)}
+            loading={deleteDocumentMutation.isPending}
           />
         </Space>
       )
@@ -353,8 +330,9 @@ const KnowledgePage: React.FC = () => {
         <Card>
           <Statistic 
             title="总文档数" 
-            value={knowledgeItems.length} 
+            value={statistics?.totalDocuments || 0} 
             prefix={<BookOutlined />}
+            loading={statsLoading}
           />
         </Card>
       </Col>
@@ -362,8 +340,9 @@ const KnowledgePage: React.FC = () => {
         <Card>
           <Statistic 
             title="已发布" 
-            value={knowledgeItems.filter(item => item.status === 'published').length}
+            value={statistics?.publishedDocuments || 0}
             valueStyle={{ color: '#3f8600' }}
+            loading={statsLoading}
           />
         </Card>
       </Col>
@@ -371,17 +350,19 @@ const KnowledgePage: React.FC = () => {
         <Card>
           <Statistic 
             title="总阅读量" 
-            value={knowledgeItems.reduce((sum, item) => sum + item.views, 0)}
+            value={statistics?.totalViews || 0}
             prefix={<EyeOutlined />}
+            loading={statsLoading}
           />
         </Card>
       </Col>
       <Col span={6}>
         <Card>
           <Statistic 
-            title="收藏数" 
-            value={knowledgeItems.filter(item => item.isStarred).length}
+            title="总点赞数" 
+            value={statistics?.totalLikes || 0}
             prefix={<StarOutlined />}
+            loading={statsLoading}
           />
         </Card>
       </Col>
@@ -391,14 +372,11 @@ const KnowledgePage: React.FC = () => {
   const renderRecentActivity = () => (
     <Card title="最近活动" style={{ marginBottom: '24px' }}>
       <List
-        dataSource={knowledgeItems
-          .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-          .slice(0, 5)
-        }
+        dataSource={recentDocuments || []}
         renderItem={(item) => (
           <List.Item>
             <List.Item.Meta
-              avatar={<Avatar icon={getTypeIcon(item.type)} />}
+              avatar={<Avatar icon={getTypeIcon(item.contentType)} />}
               title={
                 <Space>
                   <span>{item.title}</span>
@@ -410,11 +388,11 @@ const KnowledgePage: React.FC = () => {
               description={
                 <Space>
                   <Text type="secondary">
-                    <UserOutlined /> {item.author}
+                    <UserOutlined /> {item.author?.displayName || '未知'}
                   </Text>
                   <Divider type="vertical" />
                   <Text type="secondary">
-                    <ClockCircleOutlined /> {item.updatedAt.toLocaleDateString('zh-CN')}
+                    <ClockCircleOutlined /> {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
                   </Text>
                 </Space>
               }
@@ -424,6 +402,9 @@ const KnowledgePage: React.FC = () => {
       />
     </Card>
   )
+
+  const documents = documentsData?.data || []
+  const categoryTree = buildCategoryTree(categories)
 
   return (
     <div>
@@ -441,7 +422,15 @@ const KnowledgePage: React.FC = () => {
           <Row gutter={16} style={{ marginBottom: '16px' }}>
             <Col span={16}>
               <Space>
-                <Button type="primary" icon={<PlusOutlined />}>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />}
+                  onClick={() => {
+                    setSelectedItem(null)
+                    form.resetFields()
+                    setEditModalVisible(true)
+                  }}
+                >
                   新建文档
                 </Button>
                 <Upload>
@@ -454,8 +443,7 @@ const KnowledgePage: React.FC = () => {
               <Search
                 placeholder="搜索文档标题或标签"
                 allowClear
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
+                onSearch={handleSearch}
                 style={{ width: '100%' }}
               />
             </Col>
@@ -464,24 +452,32 @@ const KnowledgePage: React.FC = () => {
           <Row gutter={16}>
             <Col span={6}>
               <Card title="分类目录" size="small" style={{ height: '500px' }}>
-                <Tree
-                  treeData={categories}
-                  onSelect={(keys) => setSelectedCategory(keys[0] as string)}
-                  selectedKeys={selectedCategory ? [selectedCategory] : []}
-                />
+                <Spin spinning={categoriesLoading}>
+                  <Tree
+                    treeData={categoryTree}
+                    onSelect={handleCategorySelect}
+                    selectedKeys={searchParams.categoryId ? [searchParams.categoryId] : []}
+                  />
+                </Spin>
               </Card>
             </Col>
             <Col span={18}>
               <Card>
                 <Table
                   columns={columns}
-                  dataSource={filteredItems}
+                  dataSource={documents}
                   rowKey="id"
+                  loading={documentsLoading}
                   pagination={{
-                    pageSize: 10,
+                    current: searchParams.page || 1,
+                    pageSize: searchParams.pageSize || 20,
+                    total: documentsData?.pagination.total || 0,
                     showSizeChanger: true,
                     showQuickJumper: true,
-                    showTotal: (total) => `共 ${total} 条记录`
+                    showTotal: (total) => `共 ${total} 条记录`,
+                    onChange: (page, pageSize) => {
+                      setSearchParams(prev => ({ ...prev, page, pageSize }))
+                    }
                   }}
                 />
               </Card>
@@ -514,9 +510,9 @@ const KnowledgePage: React.FC = () => {
         <TabPane tab="标签管理" key="tags">
           <Card title="标签统计">
             <Space wrap>
-              {Array.from(new Set(knowledgeItems.flatMap(item => item.tags))).map(tag => (
+              {Object.entries(statistics?.tagCounts || {}).map(([tag, count]) => (
                 <Tag key={tag} style={{ margin: '4px' }}>
-                  {tag} ({knowledgeItems.filter(item => item.tags.includes(tag)).length})
+                  {tag} ({count})
                 </Tag>
               ))}
             </Space>
@@ -528,17 +524,13 @@ const KnowledgePage: React.FC = () => {
       <Modal
         title={selectedItem ? '编辑文档' : '新建文档'}
         open={editModalVisible}
-        onOk={() => {
-          form.validateFields().then(() => {
-            message.success('保存成功')
-            setEditModalVisible(false)
-            form.resetFields()
-          })
-        }}
+        onOk={handleSaveDocument}
         onCancel={() => {
           setEditModalVisible(false)
           form.resetFields()
+          setSelectedItem(null)
         }}
+        confirmLoading={createDocumentMutation.isPending || updateDocumentMutation.isPending}
         width={800}
       >
         <Form form={form} layout="vertical">
@@ -552,19 +544,22 @@ const KnowledgePage: React.FC = () => {
           <Form.Item name="content" label="内容">
             <Input.TextArea rows={10} placeholder="请输入文档内容..." />
           </Form.Item>
+          <Form.Item name="summary" label="摘要">
+            <Input.TextArea rows={3} placeholder="请输入文档摘要..." />
+          </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="category" label="分类">
-                <Select>
-                  {categories.map(cat => (
-                    <Option key={cat.key} value={cat.key}>{cat.title}</Option>
+              <Form.Item name="categoryId" label="分类">
+                <Select placeholder="选择分类">
+                  {categories?.map(cat => (
+                    <Option key={cat.id} value={cat.id}>{cat.name}</Option>
                   ))}
                 </Select>
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="type" label="类型">
-                <Select>
+              <Form.Item name="contentType" label="类型">
+                <Select placeholder="选择类型">
                   <Option value="document">文档</Option>
                   <Option value="tutorial">教程</Option>
                   <Option value="faq">FAQ</Option>
@@ -586,7 +581,7 @@ const KnowledgePage: React.FC = () => {
             </Col>
             <Col span={12}>
               <Form.Item name="status" label="状态">
-                <Select>
+                <Select placeholder="选择状态">
                   <Option value="draft">草稿</Option>
                   <Option value="published">发布</Option>
                   <Option value="archived">归档</Option>
@@ -621,10 +616,10 @@ const KnowledgePage: React.FC = () => {
             </div>
             <Divider />
             <Text type="secondary">
-              作者: {selectedItem.author} | 
-              创建: {selectedItem.createdAt.toLocaleDateString('zh-CN')} | 
-              更新: {selectedItem.updatedAt.toLocaleDateString('zh-CN')} |
-              查看: {selectedItem.views} 次
+              作者: {selectedItem.author?.displayName || '未知'} | 
+              创建: {new Date(selectedItem.createdAt).toLocaleDateString('zh-CN')} | 
+              更新: {new Date(selectedItem.updatedAt).toLocaleDateString('zh-CN')} |
+              查看: {selectedItem.viewCount} 次
             </Text>
           </div>
         )}

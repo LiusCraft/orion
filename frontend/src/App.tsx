@@ -3,7 +3,7 @@ import AuthLayout from './components/layout/AuthLayout'
 import MainLayout from './components/layout/MainLayout'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
-import ChatPage from './pages/chat/ChatPage'
+import ChatPageWithAPI from './pages/chat/ChatPageWithAPI'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
 import ToolsPage from './pages/tools/ToolsPage'
 import AdminPage from './pages/admin/AdminPage'
@@ -26,7 +26,7 @@ function App() {
       <Route path="/*" element={
         isAuthenticated ? <MainLayout /> : <Navigate to="/auth/login" replace />
       }>
-        <Route path="chat" element={<ChatPage />} />
+        <Route path="chat" element={<ChatPageWithAPI />} />
         <Route path="knowledge" element={<KnowledgePage />} />
         <Route path="tools" element={<ToolsPage />} />
         <Route path="admin" element={<AdminPage />} />

@@ -16,7 +16,10 @@ import {
   Input,
   Form,
   Modal,
-  message
+  message,
+  Spin,
+  Alert,
+  Select
 } from 'antd'
 import { 
   ApiOutlined,
@@ -27,184 +30,313 @@ import {
   ExclamationCircleOutlined,
   PlusOutlined,
   EditOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toolService } from '../../services/toolService'
+import type { Tool, ToolExecution } from '../../types'
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Paragraph } = Typography
 const { TabPane } = Tabs
 
-interface Tool {
-  id: string
-  name: string
-  description: string
-  type: 'monitoring' | 'logging' | 'api' | 'config'
-  status: 'active' | 'inactive' | 'error'
-  endpoint: string
-  apiKey?: string
-  lastUsed?: Date
-  config: Record<string, any>
+interface CreateToolModalProps {
+  visible: boolean
+  onClose: () => void
+  onSuccess: () => void
+}
+
+const CreateToolModal: React.FC<CreateToolModalProps> = ({ visible, onClose, onSuccess }) => {
+  const [form] = Form.useForm()
+  const [selectedType, setSelectedType] = useState<string>('')
+  const queryClient = useQueryClient()
+
+  const { data: toolTypes } = useQuery({
+    queryKey: ['toolTypes'],
+    queryFn: toolService.getToolTypes
+  })
+
+  const { data: toolTemplate } = useQuery({
+    queryKey: ['toolTemplate', selectedType],
+    queryFn: () => toolService.getToolTemplate(selectedType),
+    enabled: !!selectedType
+  })
+
+  const createToolMutation = useMutation({
+    mutationFn: toolService.createTool,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      message.success('工具创建成功')
+      form.resetFields()
+      setSelectedType('')
+      onSuccess()
+      onClose()
+    },
+    onError: () => {
+      message.error('工具创建失败')
+    }
+  })
+
+  const handleSubmit = (values: any) => {
+    const { name, displayName, description, toolType, ...config } = values
+    createToolMutation.mutate({
+      name,
+      displayName,
+      description,
+      toolType,
+      config,
+      enabled: true
+    })
+  }
+
+  const handleTypeChange = (type: string) => {
+    setSelectedType(type)
+    if (toolTemplate) {
+      form.setFieldsValue(toolTemplate.defaultConfig)
+    }
+  }
+
+  return (
+    <Modal
+      title="添加新工具"
+      open={visible}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={createToolMutation.isPending}
+      width={600}
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleSubmit}
+      >
+        <Form.Item 
+          label="工具类型" 
+          name="toolType"
+          rules={[{ required: true, message: '请选择工具类型' }]}
+        >
+          <Select 
+            placeholder="选择工具类型"
+            onChange={handleTypeChange}
+            options={toolTypes?.map(type => ({
+              label: type.name,
+              value: type.type,
+              description: type.description
+            }))}
+          />
+        </Form.Item>
+        
+        <Form.Item 
+          label="工具名称" 
+          name="name"
+          rules={[{ required: true, message: '请输入工具名称' }]}
+        >
+          <Input placeholder="输入唯一的工具标识名" />
+        </Form.Item>
+        
+        <Form.Item 
+          label="显示名称" 
+          name="displayName"
+          rules={[{ required: true, message: '请输入显示名称' }]}
+        >
+          <Input placeholder="输入用户友好的显示名称" />
+        </Form.Item>
+        
+        <Form.Item 
+          label="描述" 
+          name="description"
+        >
+          <Input.TextArea rows={2} placeholder="描述工具的功能和用途" />
+        </Form.Item>
+        
+        {selectedType && toolTemplate && (
+          <>
+            <Divider>工具配置</Divider>
+            {/* 根据工具类型动态渲染配置表单 */}
+            {Object.entries(toolTemplate.configSchema).map(([key, schema]: [string, any]) => (
+              <Form.Item
+                key={key}
+                label={schema.title || key}
+                name={key}
+                rules={schema.required ? [{ required: true, message: `请输入${schema.title || key}` }] : []}
+              >
+                {schema.type === 'string' && schema.format === 'password' ? (
+                  <Input.Password placeholder={schema.description} />
+                ) : schema.type === 'number' ? (
+                  <Input type="number" placeholder={schema.description} />
+                ) : schema.type === 'boolean' ? (
+                  <Switch />
+                ) : (
+                  <Input placeholder={schema.description} />
+                )}
+              </Form.Item>
+            ))}
+          </>
+        )}
+      </Form>
+    </Modal>
+  )
 }
 
 const ToolsPage: React.FC = () => {
-  const [tools, setTools] = useState<Tool[]>([
-    {
-      id: '1',
-      name: 'Grafana监控',
-      description: '集成Grafana监控系统，查询CDN性能指标和图表',
-      type: 'monitoring',
-      status: 'active',
-      endpoint: 'https://grafana.example.com',
-      lastUsed: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      config: {
-        organization: 'main',
-        timeout: 30,
-        defaultDashboard: 'cdn-overview'
-      }
-    },
-    {
-      id: '2',
-      name: 'Prometheus查询',
-      description: '直接查询Prometheus指标数据',
-      type: 'monitoring',
-      status: 'active',
-      endpoint: 'https://prometheus.example.com',
-      lastUsed: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      config: {
-        queryTimeout: 60,
-        maxSamples: 50000
-      }
-    },
-    {
-      id: '3',
-      name: 'ELK日志检索',
-      description: '集成ELK Stack进行日志搜索和分析',
-      type: 'logging',
-      status: 'inactive',
-      endpoint: 'https://elk.example.com',
-      config: {
-        index: 'cdn-logs-*',
-        defaultTimeRange: '1h'
-      }
-    },
-    {
-      id: '4',
-      name: 'CDN API',
-      description: 'CDN平台管理API，支持配置查询和修改',
-      type: 'api',
-      status: 'error',
-      endpoint: 'https://api.cdn.example.com',
-      config: {
-        version: 'v2',
-        rateLimitPerMinute: 100
-      }
-    }
-  ])
+  const queryClient = useQueryClient()
 
   const [configModalVisible, setConfigModalVisible] = useState(false)
+  const [createModalVisible, setCreateModalVisible] = useState(false)
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null)
   const [form] = Form.useForm()
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'monitoring': return <MonitorOutlined />
-      case 'logging': return <FileSearchOutlined />
-      case 'api': return <ApiOutlined />
-      case 'config': return <SettingOutlined />
-      default: return <ApiOutlined />
+  // 获取工具列表
+  const { data: toolsData, isLoading: toolsLoading, error: toolsError } = useQuery({
+    queryKey: ['tools'],
+    queryFn: () => toolService.getTools(1, 50)
+  })
+
+  // 获取工具统计
+  const { data: toolStats } = useQuery({
+    queryKey: ['toolStats'],
+    queryFn: toolService.getToolStats
+  })
+
+  // 获取工具执行历史
+  const { data: executionsData } = useQuery({
+    queryKey: ['toolExecutions'],
+    queryFn: () => toolService.getToolExecutions(undefined, 1, 20)
+  })
+
+  // 更新工具
+  const updateToolMutation = useMutation({
+    mutationFn: ({ toolId, data }: { toolId: string; data: any }) => 
+      toolService.updateTool(toolId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      message.success('工具更新成功')
+    },
+    onError: () => {
+      message.error('工具更新失败')
+    }
+  })
+
+  // 切换工具状态
+  const toggleToolMutation = useMutation({
+    mutationFn: ({ toolId, enabled }: { toolId: string; enabled: boolean }) => 
+      toolService.toggleTool(toolId, enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+    },
+    onError: () => {
+      message.error('切换工具状态失败')
+    }
+  })
+
+  // 测试工具连接
+  const testToolMutation = useMutation({
+    mutationFn: ({ toolType, config }: { toolType: string; config: any }) => 
+      toolService.testTool({ toolType, config }),
+    onSuccess: (result) => {
+      if (result.success) {
+        message.success(`测试成功: ${result.message}`)
+      } else {
+        message.error(`测试失败: ${result.message}`)
+      }
+    },
+    onError: () => {
+      message.error('测试连接失败')
+    }
+  })
+
+  // 删除工具
+  const deleteToolMutation = useMutation({
+    mutationFn: toolService.deleteTool,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      message.success('工具删除成功')
+    },
+    onError: () => {
+      message.error('工具删除失败')
+    }
+  })
+
+  const tools = toolsData?.data || []
+
+  const getTypeIcon = (toolType: string) => {
+    switch (toolType) {
+      case 'monitoring': 
+      case 'prometheus':
+      case 'grafana': 
+        return <MonitorOutlined />
+      case 'logging':
+      case 'elasticsearch':
+      case 'loki': 
+        return <FileSearchOutlined />
+      case 'api':
+      case 'webhook':
+      case 'http': 
+        return <ApiOutlined />
+      case 'config':
+      default: 
+        return <SettingOutlined />
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'success'
-      case 'inactive': return 'default'
-      case 'error': return 'error'
-      default: return 'default'
-    }
+  const getStatusColor = (enabled: boolean, lastStatus?: string) => {
+    if (!enabled) return 'default'
+    if (lastStatus === 'error') return 'error'
+    return 'success'
   }
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active': return '正常'
-      case 'inactive': return '未激活'
-      case 'error': return '错误'
-      default: return '未知'
-    }
+  const getStatusText = (enabled: boolean, lastStatus?: string) => {
+    if (!enabled) return '已禁用'
+    if (lastStatus === 'error') return '连接异常'
+    return '正常运行'
   }
 
   const handleToolToggle = (toolId: string, checked: boolean) => {
-    setTools(prevTools => 
-      prevTools.map(tool => 
-        tool.id === toolId 
-          ? { ...tool, status: checked ? 'active' : 'inactive' }
-          : tool
-      )
-    )
-    message.success(checked ? '工具已启用' : '工具已禁用')
+    toggleToolMutation.mutate({ toolId, enabled: checked })
   }
 
   const handleConfigTool = (tool: Tool) => {
     setSelectedTool(tool)
     form.setFieldsValue({
-      name: tool.name,
+      displayName: tool.displayName,
       description: tool.description,
-      endpoint: tool.endpoint,
       ...tool.config
     })
     setConfigModalVisible(true)
   }
 
-  const handleTestConnection = async (tool: Tool) => {
-    message.loading({ content: '正在测试连接...', key: 'test' })
-    
-    // 模拟连接测试
-    setTimeout(() => {
-      const success = Math.random() > 0.3
-      if (success) {
-        message.success({ content: '连接测试成功', key: 'test' })
-        setTools(prevTools => 
-          prevTools.map(t => 
-            t.id === tool.id 
-              ? { ...t, status: 'active' }
-              : t
-          )
-        )
-      } else {
-        message.error({ content: '连接测试失败', key: 'test' })
-        setTools(prevTools => 
-          prevTools.map(t => 
-            t.id === tool.id 
-              ? { ...t, status: 'error' }
-              : t
-          )
-        )
-      }
-    }, 2000)
+  const handleTestConnection = (tool: Tool) => {
+    testToolMutation.mutate({
+      toolType: tool.toolType,
+      config: tool.config
+    })
   }
 
   const handleSaveConfig = () => {
     form.validateFields().then(values => {
       if (selectedTool) {
-        setTools(prevTools => 
-          prevTools.map(tool => 
-            tool.id === selectedTool.id 
-              ? { 
-                  ...tool, 
-                  name: values.name,
-                  description: values.description,
-                  endpoint: values.endpoint,
-                  config: {
-                    ...tool.config,
-                    ...values
-                  }
-                }
-              : tool
-          )
-        )
-        message.success('配置已保存')
+        const { displayName, description, ...config } = values
+        updateToolMutation.mutate({
+          toolId: selectedTool.id,
+          data: {
+            displayName,
+            description,
+            config
+          }
+        })
         setConfigModalVisible(false)
         setSelectedTool(null)
         form.resetFields()
+      }
+    })
+  }
+
+  const handleDeleteTool = (toolId: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这个工具吗？此操作无法撤销。',
+      onOk: () => {
+        deleteToolMutation.mutate(toolId)
       }
     })
   }
@@ -214,19 +346,20 @@ const ToolsPage: React.FC = () => {
       key={tool.id}
       title={
         <Space>
-          {getTypeIcon(tool.type)}
-          <span>{tool.name}</span>
+          {getTypeIcon(tool.toolType)}
+          <span>{tool.displayName || tool.name}</span>
           <Badge 
-            status={getStatusColor(tool.status) as any} 
-            text={getStatusText(tool.status)} 
+            status={getStatusColor(tool.enabled, tool.lastStatus) as any} 
+            text={getStatusText(tool.enabled, tool.lastStatus)} 
           />
         </Space>
       }
       extra={
         <Space>
           <Switch
-            checked={tool.status === 'active'}
+            checked={tool.enabled}
             onChange={(checked) => handleToolToggle(tool.id, checked)}
+            loading={toggleToolMutation.isPending}
             checkedChildren="启用"
             unCheckedChildren="禁用"
           />
@@ -235,6 +368,12 @@ const ToolsPage: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => handleConfigTool(tool)}
           />
+          <Button 
+            type="text" 
+            icon={<DeleteOutlined />}
+            danger
+            onClick={() => handleDeleteTool(tool.id)}
+          />
         </Space>
       }
       style={{ marginBottom: '16px' }}
@@ -242,12 +381,17 @@ const ToolsPage: React.FC = () => {
       <Paragraph ellipsis={{ rows: 2 }}>{tool.description}</Paragraph>
       
       <Descriptions size="small" column={1}>
-        <Descriptions.Item label="接口地址">
-          <Text code copyable>{tool.endpoint}</Text>
+        <Descriptions.Item label="工具类型">
+          <Tag>{tool.toolType}</Tag>
         </Descriptions.Item>
-        {tool.lastUsed && (
+        {tool.lastExecutedAt && (
           <Descriptions.Item label="最后使用">
-            {tool.lastUsed.toLocaleString('zh-CN')}
+            {new Date(tool.lastExecutedAt).toLocaleString('zh-CN')}
+          </Descriptions.Item>
+        )}
+        {tool.executionCount !== undefined && (
+          <Descriptions.Item label="执行次数">
+            {tool.executionCount} 次
           </Descriptions.Item>
         )}
       </Descriptions>
@@ -260,7 +404,8 @@ const ToolsPage: React.FC = () => {
           size="small"
           icon={<ReloadOutlined />}
           onClick={() => handleTestConnection(tool)}
-          disabled={tool.status === 'inactive'}
+          disabled={!tool.enabled}
+          loading={testToolMutation.isPending}
         >
           测试连接
         </Button>
@@ -284,7 +429,7 @@ const ToolsPage: React.FC = () => {
               <CheckCircleOutlined />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-              {tools.filter(t => t.status === 'active').length}
+              {toolStats?.activeTools || tools.filter(t => t.enabled && t.lastStatus !== 'error').length}
             </div>
             <div style={{ color: '#666' }}>正常运行</div>
           </div>
@@ -295,7 +440,7 @@ const ToolsPage: React.FC = () => {
               <ExclamationCircleOutlined />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-              {tools.filter(t => t.status === 'inactive').length}
+              {tools.filter(t => !t.enabled).length}
             </div>
             <div style={{ color: '#666' }}>未激活</div>
           </div>
@@ -306,7 +451,7 @@ const ToolsPage: React.FC = () => {
               <ExclamationCircleOutlined />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-              {tools.filter(t => t.status === 'error').length}
+              {tools.filter(t => t.enabled && t.lastStatus === 'error').length}
             </div>
             <div style={{ color: '#666' }}>连接异常</div>
           </div>
@@ -317,7 +462,7 @@ const ToolsPage: React.FC = () => {
               <ApiOutlined />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-              {tools.length}
+              {toolStats?.totalTools || tools.length}
             </div>
             <div style={{ color: '#666' }}>总计工具</div>
           </div>
@@ -328,25 +473,81 @@ const ToolsPage: React.FC = () => {
 
   const renderUsageStats = () => (
     <Card title="使用统计" style={{ marginBottom: '24px' }}>
+      {toolStats && (
+        <div style={{ marginBottom: '16px' }}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <div style={{ textAlign: 'center', padding: '16px', background: '#f5f5f5', borderRadius: '6px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                  {toolStats.totalExecutions}
+                </div>
+                <div style={{ color: '#666' }}>总执行次数</div>
+              </div>
+            </Col>
+            <Col span={8}>
+              <div style={{ textAlign: 'center', padding: '16px', background: '#f5f5f5', borderRadius: '6px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                  {(toolStats.successRate * 100).toFixed(1)}%
+                </div>
+                <div style={{ color: '#666' }}>成功率</div>
+              </div>
+            </Col>
+            <Col span={8}>
+              <div style={{ textAlign: 'center', padding: '16px', background: '#f5f5f5', borderRadius: '6px' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
+                  {toolStats.averageExecutionTime.toFixed(0)}ms
+                </div>
+                <div style={{ color: '#666' }}>平均响应时间</div>
+              </div>
+            </Col>
+          </Row>
+        </div>
+      )}
+      
       <List
-        dataSource={tools.filter(t => t.lastUsed).sort((a, b) => 
-          (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0)
-        )}
-        renderItem={(tool) => (
-          <List.Item>
-            <List.Item.Meta
-              avatar={getTypeIcon(tool.type)}
-              title={tool.name}
-              description={`最后使用: ${tool.lastUsed?.toLocaleString('zh-CN')}`}
-            />
-            <Tag color={getStatusColor(tool.status)}>
-              {getStatusText(tool.status)}
-            </Tag>
-          </List.Item>
-        )}
+        dataSource={toolStats?.toolUsageStats || []}
+        renderItem={(stat) => {
+          const tool = tools.find(t => t.id === stat.toolId)
+          return (
+            <List.Item>
+              <List.Item.Meta
+                avatar={tool ? getTypeIcon(tool.toolType) : <ApiOutlined />}
+                title={stat.toolName}
+                description={`执行 ${stat.executionCount} 次 · 成功 ${stat.successCount} 次 · 平均 ${stat.averageTime}ms`}
+              />
+              <Tag color={tool ? getStatusColor(tool.enabled, tool.lastStatus) : 'default'}>
+                {tool ? getStatusText(tool.enabled, tool.lastStatus) : '未知'}
+              </Tag>
+            </List.Item>
+          )
+        }}
       />
     </Card>
   )
+
+  if (toolsLoading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (toolsError) {
+    return (
+      <Alert
+        message="加载失败"
+        description="无法加载工具列表，请检查网络连接或稍后重试。"
+        type="error"
+        showIcon
+        action={
+          <Button size="small" onClick={() => queryClient.invalidateQueries({ queryKey: ['tools'] })}>
+            重试
+          </Button>
+        }
+      />
+    )
+  }
 
   return (
     <div>
@@ -363,56 +564,91 @@ const ToolsPage: React.FC = () => {
         <TabPane tab="工具列表" key="tools">
           <div style={{ marginBottom: '16px' }}>
             <Space>
-              <Button type="primary" icon={<PlusOutlined />}>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                onClick={() => setCreateModalVisible(true)}
+              >
                 添加工具
               </Button>
-              <Button icon={<ReloadOutlined />}>
+              <Button 
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['tools'] })
+                  queryClient.invalidateQueries({ queryKey: ['toolStats'] })
+                }}
+                loading={toolsLoading}
+              >
                 刷新状态
               </Button>
             </Space>
           </div>
 
-          <Row gutter={[16, 16]}>
-            <Col span={12}>
-              <Title level={4}>监控工具</Title>
-              {tools.filter(t => t.type === 'monitoring').map(renderToolCard)}
-            </Col>
-            <Col span={12}>
-              <Title level={4}>日志工具</Title>
-              {tools.filter(t => t.type === 'logging').map(renderToolCard)}
-              
-              <Title level={4} style={{ marginTop: '24px' }}>API工具</Title>
-              {tools.filter(t => t.type === 'api').map(renderToolCard)}
-            </Col>
-          </Row>
+          {tools.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+              <ApiOutlined style={{ fontSize: '48px', color: '#ccc', marginBottom: '16px' }} />
+              <div style={{ color: '#666' }}>暂无工具，点击上方按钮添加新工具</div>
+            </div>
+          ) : (
+            <Row gutter={[16, 16]}>
+              {tools.map(tool => (
+                <Col key={tool.id} span={12}>
+                  {renderToolCard(tool)}
+                </Col>
+              ))}
+            </Row>
+          )}
         </TabPane>
 
         <TabPane tab="使用统计" key="stats">
           {renderUsageStats()}
         </TabPane>
 
-        <TabPane tab="系统配置" key="config">
-          <Card title="全局配置">
-            <Form layout="vertical">
-              <Form.Item label="API调用超时时间(秒)" name="globalTimeout">
-                <Input placeholder="30" />
-              </Form.Item>
-              <Form.Item label="最大并发连接数" name="maxConnections">
-                <Input placeholder="10" />
-              </Form.Item>
-              <Form.Item label="重试次数" name="retryCount">
-                <Input placeholder="3" />
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary">保存配置</Button>
-              </Form.Item>
-            </Form>
+        <TabPane tab="执行历史" key="history">
+          <Card title="最近执行记录">
+            <List
+              dataSource={executionsData?.data || []}
+              renderItem={(execution: ToolExecution) => {
+                const tool = tools.find(t => t.id === execution.toolId)
+                return (
+                  <List.Item>
+                    <List.Item.Meta
+                      avatar={tool ? getTypeIcon(tool.toolType) : <ApiOutlined />}
+                      title={
+                        <Space>
+                          <span>{tool?.displayName || tool?.name || '未知工具'}</span>
+                          <Tag color={execution.status === 'success' ? 'success' : execution.status === 'failed' ? 'error' : 'processing'}>
+                            {execution.status === 'success' ? '成功' : execution.status === 'failed' ? '失败' : '执行中'}
+                          </Tag>
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <div>执行时间: {new Date(execution.executedAt).toLocaleString('zh-CN')}</div>
+                          {execution.duration && <div>耗时: {execution.duration}ms</div>}
+                          {execution.error && <div style={{ color: '#ff4d4f' }}>错误: {execution.error}</div>}
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                )
+              }}
+            />
           </Card>
         </TabPane>
       </Tabs>
 
+      <CreateToolModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['tools'] })
+          queryClient.invalidateQueries({ queryKey: ['toolStats'] })
+        }}
+      />
+
       <Modal
-        title={`配置 - ${selectedTool?.name}`}
+        title={`配置 - ${selectedTool?.displayName || selectedTool?.name}`}
         open={configModalVisible}
         onOk={handleSaveConfig}
         onCancel={() => {
@@ -420,13 +656,14 @@ const ToolsPage: React.FC = () => {
           setSelectedTool(null)
           form.resetFields()
         }}
+        confirmLoading={updateToolMutation.isPending}
         width={600}
       >
         <Form form={form} layout="vertical">
           <Form.Item 
-            label="工具名称" 
-            name="name" 
-            rules={[{ required: true, message: '请输入工具名称' }]}
+            label="显示名称" 
+            name="displayName" 
+            rules={[{ required: true, message: '请输入显示名称' }]}
           >
             <Input />
           </Form.Item>
@@ -436,38 +673,23 @@ const ToolsPage: React.FC = () => {
           >
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item 
-            label="接口地址" 
-            name="endpoint"
-            rules={[{ required: true, message: '请输入接口地址' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item label="API密钥" name="apiKey">
-            <Input.Password placeholder="如需要请输入API密钥" />
-          </Form.Item>
           
-          {selectedTool?.type === 'monitoring' && (
-            <>
-              <Form.Item label="组织" name="organization">
-                <Input />
-              </Form.Item>
-              <Form.Item label="超时时间(秒)" name="timeout">
+          <Divider>工具配置</Divider>
+          
+          {/* 动态渲染配置字段 */}
+          {selectedTool && Object.entries(selectedTool.config || {}).map(([key, value]) => (
+            <Form.Item key={key} label={key} name={key}>
+              {typeof value === 'boolean' ? (
+                <Switch />
+              ) : typeof value === 'number' ? (
                 <Input type="number" />
-              </Form.Item>
-            </>
-          )}
-          
-          {selectedTool?.type === 'logging' && (
-            <>
-              <Form.Item label="索引模式" name="index">
+              ) : key.toLowerCase().includes('password') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('key') ? (
+                <Input.Password />
+              ) : (
                 <Input />
-              </Form.Item>
-              <Form.Item label="默认时间范围" name="defaultTimeRange">
-                <Input />
-              </Form.Item>
-            </>
-          )}
+              )}
+            </Form.Item>
+          ))}
         </Form>
       </Modal>
     </div>
