@@ -5,6 +5,7 @@ import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ChatPage from './pages/chat/ChatPage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
+import ToolsPage from './pages/tools/ToolsPage'
 import AdminPage from './pages/admin/AdminPage'
 import { useAuthStore } from './store/authStore'
 
@@ -27,6 +28,7 @@ function App() {
       }>
         <Route path="chat" element={<ChatPage />} />
         <Route path="knowledge" element={<KnowledgePage />} />
+        <Route path="tools" element={<ToolsPage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route index element={<Navigate to="/chat" replace />} />
       </Route>

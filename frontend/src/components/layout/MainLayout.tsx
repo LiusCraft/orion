@@ -4,14 +4,16 @@ import { Layout, Menu, Avatar, Dropdown, Space, Button } from 'antd'
 import {
   MessageOutlined,
   BookOutlined,
-  SettingOutlined,
   UserOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  ApiOutlined,
+  ControlOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
+import { PermissionGuard, ROLES } from '../common/PermissionGuard'
 
 const { Header, Sider, Content } = Layout
 
@@ -32,13 +34,18 @@ const MainLayout: React.FC = () => {
       icon: <BookOutlined />,
       label: '知识库',
     },
+    {
+      key: '/tools',
+      icon: <ApiOutlined />,
+      label: '工具集成',
+    },
   ]
 
   // 如果是管理员，添加管理页面
-  if (user?.role === 'admin') {
+  if (user?.role === ROLES.ADMIN) {
     menuItems.push({
       key: '/admin',
-      icon: <SettingOutlined />,
+      icon: <ControlOutlined />,
       label: '系统管理',
     })
   }
@@ -77,6 +84,21 @@ const MainLayout: React.FC = () => {
       onClick: handleLogout,
     },
   ]
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case ROLES.ADMIN:
+        return { text: '管理员', color: '#f50' }
+      case ROLES.USER:
+        return { text: '用户', color: '#108ee9' }
+      case ROLES.VIEWER:
+        return { text: '访客', color: '#87d068' }
+      default:
+        return { text: '未知', color: '#999' }
+    }
+  }
+
+  const roleBadge = user ? getRoleBadge(user.role) : null
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -136,7 +158,18 @@ const MainLayout: React.FC = () => {
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar size="small" icon={<UserOutlined />} src={user?.avatarURL} />
-              <span>{user?.displayName || user?.username}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span style={{ lineHeight: '16px' }}>{user?.displayName || user?.username}</span>
+                {roleBadge && (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: roleBadge.color,
+                    lineHeight: '14px'
+                  }}>
+                    {roleBadge.text}
+                  </span>
+                )}
+              </div>
             </Space>
           </Dropdown>
         </Header>
@@ -148,7 +181,22 @@ const MainLayout: React.FC = () => {
           borderRadius: '6px',
           overflow: 'auto',
         }}>
-          <Outlet />
+          <PermissionGuard
+            fallback={
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                height: '200px',
+                flexDirection: 'column'
+              }}>
+                <h3>访问被拒绝</h3>
+                <p>您没有权限访问此页面</p>
+              </div>
+            }
+          >
+            <Outlet />
+          </PermissionGuard>
         </Content>
       </Layout>
     </Layout>
