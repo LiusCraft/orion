@@ -7,11 +7,11 @@
     "write_timeout": 30
   },
   "database": {
-    "host": "124.220.234.136",
-    "port": "5432",
-    "user": "sreagent",
-    "password": "zXLWyBy2h7jYfKJK",
-    "dbname": "sreagent",
+    "host": "",
+    "port": "",
+    "user": "",
+    "password": "",
+    "dbname": "",
     "sslmode": "disable",
     "timezone": "UTC"
   },
@@ -23,13 +23,17 @@
   },
   "ai": {
     "llm": {
-      "provider": "openai",
-      "model": "gpt-4",
+      "provider": "",
+      "model": "",
       "api_key": "",
       "base_url": "",
       "temperature": 0.7,
       "max_tokens": 2000,
-      "timeout": 60
+      "top_k": 5,
+      "top_p": 0.9,
+      "retry_count": 3,
+      "retry_delay": 1,
+      "system_prompt": "你是CDN AI Agent，专门帮助解决CDN相关的技术问题。\n\n你的能力包括：\n1. CDN配置和优化建议\n2. 故障诊断和解决方案\n3. 性能监控和分析\n4. 最佳实践指导\n\n请始终：\n- 提供准确、专业的技术建议\n- 根据用户问题给出具体的解决步骤\n- 必要时询问更多技术细节\n- 保持友好、专业的交流方式"
     },
     "rag": {
       "top_k": 10,
@@ -53,7 +57,7 @@
     }
   },
   "jwt": {
-    "secret": "",
+    "secret": "your-jwt-secret-here",
     "expires_in": 24,
     "refresh_in": 168,
     "issuer": "cdnagent"

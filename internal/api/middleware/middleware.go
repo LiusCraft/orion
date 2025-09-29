@@ -80,8 +80,25 @@ func RequestID() gin.HandlerFunc {
 // Auth JWT认证中间件
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var token string
+
+		// 从Authorization header获取token
 		authHeader := c.Request.Header.Get("Authorization")
-		if authHeader == "" {
+		if authHeader != "" {
+			// Bearer token格式
+			tokenParts := strings.SplitN(authHeader, " ", 2)
+			if len(tokenParts) == 2 && tokenParts[0] == "Bearer" {
+				token = tokenParts[1]
+			}
+		}
+
+		// 如果header中没有token，尝试从query参数中获取（用于SSE连接）
+		if token == "" {
+			token = c.Query("token")
+		}
+
+		// 如果两个地方都没有token
+		if token == "" {
 			c.JSON(http.StatusUnauthorized, errors.NewErrorResponse(
 				20001,
 				"缺少认证token",
@@ -91,19 +108,6 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		// Bearer token格式
-		tokenParts := strings.SplitN(authHeader, " ", 2)
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, errors.NewErrorResponse(
-				20002,
-				"认证token格式错误",
-				nil,
-			))
-			c.Abort()
-			return
-		}
-
-		token := tokenParts[1]
 		claims, err := jwt.ValidateToken(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, errors.NewErrorResponse(

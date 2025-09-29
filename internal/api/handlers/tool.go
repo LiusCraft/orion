@@ -24,59 +24,59 @@ func NewToolHandler(db *gorm.DB) *ToolHandler {
 
 type CreateToolRequest struct {
 	Name        string                 `json:"name" binding:"required,max=100"`
-	DisplayName string                 `json:"display_name" binding:"required,max=100"`
+	DisplayName string                 `json:"displayName" binding:"required,max=100"`
 	Description string                 `json:"description"`
-	ToolType    string                 `json:"tool_type" binding:"required,oneof=api webhook script"`
+	ToolType    string                 `json:"toolType" binding:"required,oneof=api webhook script"`
 	Config      map[string]interface{} `json:"config" binding:"required"`
-	AuthConfig  map[string]interface{} `json:"auth_config"`
+	AuthConfig  map[string]interface{} `json:"authConfig"`
 	Enabled     *bool                  `json:"enabled"`
 }
 
 type UpdateToolRequest struct {
-	DisplayName string                 `json:"display_name" binding:"max=100"`
+	DisplayName string                 `json:"displayName" binding:"max=100"`
 	Description string                 `json:"description"`
 	Config      map[string]interface{} `json:"config"`
-	AuthConfig  map[string]interface{} `json:"auth_config"`
+	AuthConfig  map[string]interface{} `json:"authConfig"`
 	Enabled     *bool                  `json:"enabled"`
 }
 
 type ExecuteToolRequest struct {
-	InputParams map[string]interface{} `json:"input_params" binding:"required"`
+	InputParams map[string]interface{} `json:"inputParams" binding:"required"`
 }
 
 type ToolResponse struct {
 	ID          uuid.UUID              `json:"id"`
 	Name        string                 `json:"name"`
-	DisplayName string                 `json:"display_name"`
+	DisplayName string                 `json:"displayName"`
 	Description string                 `json:"description"`
-	ToolType    string                 `json:"tool_type"`
+	ToolType    string                 `json:"toolType"`
 	Config      map[string]interface{} `json:"config"`
-	AuthConfig  map[string]interface{} `json:"auth_config,omitempty"`
+	AuthConfig  map[string]interface{} `json:"authConfig,omitempty"`
 	Enabled     bool                   `json:"enabled"`
-	CreatedBy   *uuid.UUID             `json:"created_by"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	CreatedBy   *uuid.UUID             `json:"createdBy"`
+	CreatedAt   time.Time              `json:"createdAt"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
 	Creator     *CreatorInfo           `json:"creator,omitempty"`
 }
 
 type ToolExecutionResponse struct {
 	ID              uuid.UUID              `json:"id"`
-	ToolID          uuid.UUID              `json:"tool_id"`
-	MessageID       *uuid.UUID             `json:"message_id"`
-	UserID          uuid.UUID              `json:"user_id"`
-	InputParams     map[string]interface{} `json:"input_params"`
-	OutputResult    map[string]interface{} `json:"output_result"`
-	ExecutionTimeMs *int                   `json:"execution_time_ms"`
+	ToolID          uuid.UUID              `json:"toolId"`
+	MessageID       *uuid.UUID             `json:"messageId"`
+	UserID          uuid.UUID              `json:"userId"`
+	InputParams     map[string]interface{} `json:"inputParams"`
+	OutputResult    map[string]interface{} `json:"outputResult"`
+	ExecutionTimeMs *int                   `json:"executionTimeMs"`
 	Status          string                 `json:"status"`
-	ErrorMessage    string                 `json:"error_message"`
-	CreatedAt       time.Time              `json:"created_at"`
+	ErrorMessage    string                 `json:"errorMessage"`
+	CreatedAt       time.Time              `json:"createdAt"`
 	Tool            *ToolResponse          `json:"tool,omitempty"`
 }
 
 type CreatorInfo struct {
 	ID          uuid.UUID `json:"id"`
 	Username    string    `json:"username"`
-	DisplayName string    `json:"display_name"`
+	DisplayName string    `json:"displayName"`
 }
 
 func (h *ToolHandler) CreateTool(c *gin.Context) {

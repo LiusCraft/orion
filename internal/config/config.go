@@ -49,13 +49,24 @@ type AIConfig struct {
 }
 
 type LLMConfig struct {
-	Provider    string  `mapstructure:"provider"`     // openai, qwen
-	Model       string  `mapstructure:"model"`        // gpt-4, qwen-plus
+	Provider    string  `mapstructure:"provider"`     // openai, claude, qwen
+	Model       string  `mapstructure:"model"`        // gpt-4, claude-3-sonnet-20240229, qwen-plus
 	APIKey      string  `mapstructure:"api_key"`
 	BaseURL     string  `mapstructure:"base_url"`
 	Temperature float64 `mapstructure:"temperature"`
 	MaxTokens   int     `mapstructure:"max_tokens"`
 	Timeout     int     `mapstructure:"timeout"`
+
+	// Claude特有参数
+	TopK       int     `mapstructure:"top_k"`
+	TopP       float64 `mapstructure:"top_p"`
+
+	// 系统提示词配置
+	SystemPrompt string `mapstructure:"system_prompt"`
+
+	// 重试配置
+	RetryCount int `mapstructure:"retry_count"`
+	RetryDelay int `mapstructure:"retry_delay"` // seconds
 }
 
 type RAGConfig struct {
@@ -183,11 +194,28 @@ func setDefaults() {
 	viper.SetDefault("redis.db", 0)
 
 	// AI defaults
-	viper.SetDefault("ai.llm.provider", "openai")
-	viper.SetDefault("ai.llm.model", "gpt-4")
+	viper.SetDefault("ai.llm.provider", "claude")
+	viper.SetDefault("ai.llm.model", "claude-3-sonnet-20240229")
 	viper.SetDefault("ai.llm.temperature", 0.7)
 	viper.SetDefault("ai.llm.max_tokens", 2000)
 	viper.SetDefault("ai.llm.timeout", 60)
+	viper.SetDefault("ai.llm.top_k", 5)
+	viper.SetDefault("ai.llm.top_p", 0.9)
+	viper.SetDefault("ai.llm.retry_count", 3)
+	viper.SetDefault("ai.llm.retry_delay", 1)
+	viper.SetDefault("ai.llm.system_prompt", `你是CDN AI Agent，专门帮助解决CDN相关的技术问题。
+
+你的能力包括：
+1. CDN配置和优化建议
+2. 故障诊断和解决方案
+3. 性能监控和分析
+4. 最佳实践指导
+
+请始终：
+- 提供准确、专业的技术建议
+- 根据用户问题给出具体的解决步骤
+- 必要时询问更多技术细节
+- 保持友好、专业的交流方式`)
 
 	// RAG defaults
 	viper.SetDefault("ai.rag.top_k", 10)

@@ -31,7 +31,7 @@ type RegisterRequest struct {
 	Username    string `json:"username" binding:"required,min=3,max=50"`
 	Email       string `json:"email" binding:"required,email"`
 	Password    string `json:"password" binding:"required,min=6"`
-	DisplayName string `json:"display_name" binding:"max=100"`
+	DisplayName string `json:"displayName" binding:"max=100"`
 	Department  string `json:"department" binding:"max=50"`
 }
 
@@ -227,7 +227,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {

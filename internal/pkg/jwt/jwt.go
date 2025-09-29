@@ -11,18 +11,18 @@ import (
 )
 
 type Claims struct {
-	UserID      uuid.UUID `json:"user_id"`
+	UserID      uuid.UUID `json:"userId"`
 	Username    string    `json:"username"`
 	Role        string    `json:"role"`
 	Department  string    `json:"department"`
-	TokenType   string    `json:"token_type"` // access, refresh
+	TokenType   string    `json:"tokenType"` // access, refresh
 	jwt.RegisteredClaims
 }
 
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	ExpiresIn    int64  `json:"expiresIn"`
 }
 
 func GenerateTokenPair(userID uuid.UUID, username, role, department string) (*TokenPair, error) {
