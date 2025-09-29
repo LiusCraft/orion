@@ -1,0 +1,81 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": "8080",
+    "mode": "debug",
+    "read_timeout": 30,
+    "write_timeout": 30
+  },
+  "database": {
+    "host": "124.220.234.136",
+    "port": "5432",
+    "user": "sreagent",
+    "password": "zXLWyBy2h7jYfKJK",
+    "dbname": "sreagent",
+    "sslmode": "disable",
+    "timezone": "UTC"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": "6379",
+    "password": "",
+    "db": 0
+  },
+  "ai": {
+    "llm": {
+      "provider": "openai",
+      "model": "gpt-4",
+      "api_key": "",
+      "base_url": "",
+      "temperature": 0.7,
+      "max_tokens": 2000,
+      "timeout": 60
+    },
+    "rag": {
+      "top_k": 10,
+      "score_threshold": 0.7,
+      "vector_weight": 0.7,
+      "text_weight": 0.3,
+      "hybrid_enabled": true
+    },
+    "agent": {
+      "max_iterations": 10,
+      "thinking_enabled": true,
+      "memory_enabled": true,
+      "memory_length": 50
+    },
+    "embedding": {
+      "provider": "openai",
+      "model": "text-embedding-ada-002",
+      "chunk_size": 1000,
+      "chunk_overlap": 200,
+      "batch_size": 10
+    }
+  },
+  "jwt": {
+    "secret": "",
+    "expires_in": 24,
+    "refresh_in": 168,
+    "issuer": "cdnagent"
+  },
+  "tools": {
+    "timeout": 30,
+    "max_concurrent": 5,
+    "grafana": {
+      "base_url": "",
+      "api_key": "",
+      "enabled": false
+    },
+    "logs": {
+      "elastic_url": "",
+      "username": "",
+      "password": "",
+      "enabled": false
+    },
+    "cdn": {
+      "base_url": "",
+      "api_key": "",
+      "enabled": false
+    }
+  }
+}
