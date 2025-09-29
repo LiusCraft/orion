@@ -25,19 +25,25 @@ func SetupAuthRoutes(rg *gin.RouterGroup, handler *handlers.AuthHandler) {
 }
 
 func SetupChatRoutes(rg *gin.RouterGroup, handler *handlers.ChatHandler) {
-	chat := rg.Group("/chat")
-	chat.Use(middleware.Auth()) // 所有聊天API都需要认证
+	// 直接在根路径下设置对话路由，以匹配前端API调用
+	conversations := rg.Group("/conversations")
+	conversations.Use(middleware.Auth()) // 所有聊天API都需要认证
 	{
 		// 对话管理
-		chat.POST("/conversations", handler.CreateConversation)
-		chat.GET("/conversations", handler.GetConversations)
-		chat.GET("/conversations/:id", handler.GetConversation)
-		chat.PUT("/conversations/:id", handler.UpdateConversation)
-		chat.DELETE("/conversations/:id", handler.DeleteConversation)
-		
+		conversations.POST("", handler.CreateConversation)
+		conversations.GET("", handler.GetConversations)
+		conversations.GET("/:id", handler.GetConversation)
+		conversations.PUT("/:id", handler.UpdateConversation)
+		conversations.DELETE("/:id", handler.DeleteConversation)
+
 		// 消息管理
-		chat.GET("/conversations/:id/messages", handler.GetMessages)
-		chat.POST("/conversations/:id/messages", handler.SendMessage)
+		conversations.GET("/:id/messages", handler.GetMessages)
+		conversations.POST("/:id/messages", handler.SendMessage)
+		conversations.GET("/:id/messages/:messageId", handler.GetMessage)
+		conversations.POST("/:id/messages/:messageId/regenerate", handler.RegenerateMessage)
+
+		// SSE流式响应
+		conversations.GET("/:id/stream", handler.StreamMessages)
 	}
 }
 

@@ -1,6 +1,9 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -8,6 +11,40 @@ import (
 	"github.com/pgvector/pgvector-go"
 	"gorm.io/gorm"
 )
+
+// JSONMap 自定义JSON类型，用于处理PostgreSQL的JSONB字段
+type JSONMap map[string]interface{}
+
+// Value 实现 driver.Valuer 接口
+func (j JSONMap) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return json.Marshal(j)
+}
+
+// Scan 实现 sql.Scanner 接口
+func (j *JSONMap) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("cannot scan non-string value into JSONMap")
+	}
+
+	var result JSONMap
+	err := json.Unmarshal(bytes, &result)
+	*j = result
+	return err
+}
 
 // User 用户表
 type User struct {
@@ -25,48 +62,48 @@ type User struct {
 	UpdatedAt   time.Time  `gorm:"type:timestamptz;not null;default:now()" json:"updated_at"`
 }
 
-// UserSession 用户会话表
+//UserSession 用户会话表
 type UserSession struct {
-	ID         uuid.UUID              `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID     uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
-	TokenHash  string                 `gorm:"type:varchar(255);not null;index" json:"-"`
-	DeviceInfo map[string]interface{} `gorm:"type:jsonb" json:"device_info"`
-	IPAddress  string                 `gorm:"type:inet" json:"ip_address"`
-	ExpiresAt  time.Time              `gorm:"type:timestamptz;not null;index" json:"expires_at"`
-	CreatedAt  time.Time              `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
-	User       User                   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	ID         uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID     uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	TokenHash  string    `gorm:"type:varchar(255);not null;index" json:"-"`
+	DeviceInfo JSONMap   `gorm:"type:jsonb" json:"device_info"`
+	IPAddress  string    `gorm:"type:inet" json:"ip_address"`
+	ExpiresAt  time.Time `gorm:"type:timestamptz;not null;index" json:"expires_at"`
+	CreatedAt  time.Time `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
+	User       User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
 }
 
 // Conversation 对话会话表
 type Conversation struct {
-	ID              uuid.UUID              `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID          uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
-	Title           string                 `gorm:"type:varchar(200)" json:"title"`
-	Context         map[string]interface{} `gorm:"type:jsonb" json:"context"`
-	Status          string                 `gorm:"type:varchar(20);not null;default:'active';index" json:"status"` // active, archived, deleted
-	TotalMessages   int                    `gorm:"not null;default:0" json:"total_messages"`
-	LastMessageAt   *time.Time             `gorm:"type:timestamptz;index" json:"last_message_at"`
-	CreatedAt       time.Time              `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
-	UpdatedAt       time.Time              `gorm:"type:timestamptz;not null;default:now()" json:"updated_at"`
-	User            User                   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	ID              uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID          uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	Title           string     `gorm:"type:varchar(200)" json:"title"`
+	Context         JSONMap    `gorm:"type:jsonb" json:"context"`
+	Status          string     `gorm:"type:varchar(20);not null;default:'active';index" json:"status"` // active, archived, deleted
+	TotalMessages   int        `gorm:"not null;default:0" json:"total_messages"`
+	LastMessageAt   *time.Time `gorm:"type:timestamptz;index" json:"last_message_at"`
+	CreatedAt       time.Time  `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"type:timestamptz;not null;default:now()" json:"updated_at"`
+	User            User       `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
 }
 
 // Message 消息表
 type Message struct {
-	ID               uuid.UUID              `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ConversationID   uuid.UUID              `gorm:"type:uuid;not null;index" json:"conversation_id"`
-	ParentMessageID  *uuid.UUID             `gorm:"type:uuid;index" json:"parent_message_id"`
-	SenderType       string                 `gorm:"type:varchar(10);not null;index" json:"sender_type"` // user, ai, system
-	Content          string                 `gorm:"type:text;not null" json:"content"`
-	ContentType      string                 `gorm:"type:varchar(20);not null;default:'text'" json:"content_type"` // text, markdown, json
-	Metadata         map[string]interface{} `gorm:"type:jsonb" json:"metadata"`
-	TokenCount       *int                   `gorm:"type:int" json:"token_count"`
-	ProcessingTimeMs *int                   `gorm:"type:int" json:"processing_time_ms"`
-	Status           string                 `gorm:"type:varchar(20);not null;default:'completed'" json:"status"` // pending, completed, failed, streaming
-	ErrorMessage     string                 `gorm:"type:text" json:"error_message"`
-	CreatedAt        time.Time              `gorm:"type:timestamptz;not null;default:now();index" json:"created_at"`
-	Conversation     Conversation           `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
-	ParentMessage    *Message               `gorm:"foreignKey:ParentMessageID" json:"parent_message,omitempty"`
+	ID               uuid.UUID     `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ConversationID   uuid.UUID     `gorm:"type:uuid;not null;index" json:"conversation_id"`
+	ParentMessageID  *uuid.UUID    `gorm:"type:uuid;index" json:"parent_message_id"`
+	SenderType       string        `gorm:"type:varchar(10);not null;index" json:"sender_type"` // user, ai, system
+	Content          string        `gorm:"type:text;not null" json:"content"`
+	ContentType      string        `gorm:"type:varchar(20);not null;default:'text'" json:"content_type"` // text, markdown, json
+	Metadata         JSONMap       `gorm:"type:jsonb" json:"metadata"`
+	TokenCount       *int          `gorm:"type:int" json:"token_count"`
+	ProcessingTimeMs *int          `gorm:"type:int" json:"processing_time_ms"`
+	Status           string        `gorm:"type:varchar(20);not null;default:'completed'" json:"status"` // pending, completed, failed, streaming
+	ErrorMessage     string        `gorm:"type:text" json:"error_message"`
+	CreatedAt        time.Time     `gorm:"type:timestamptz;not null;default:now();index" json:"created_at"`
+	Conversation     Conversation  `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
+	ParentMessage    *Message      `gorm:"foreignKey:ParentMessageID" json:"parent_message,omitempty"`
 }
 
 // MessageAttachment 消息附件表
