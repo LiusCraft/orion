@@ -24,20 +24,20 @@ func NewKnowledgeHandler(db *gorm.DB) *KnowledgeHandler {
 }
 
 type CreateCategoryRequest struct {
-	ParentID    *uuid.UUID `json:"parent_id"`
+	ParentID    *uuid.UUID `json:"parentId"`
 	Name        string     `json:"name" binding:"required,max=100"`
 	Description string     `json:"description"`
-	SortOrder   int        `json:"sort_order"`
+	SortOrder   int        `json:"sortOrder"`
 }
 
 type CreateDocumentRequest struct {
-	CategoryID  uuid.UUID      `json:"category_id" binding:"required"`
+	CategoryID  uuid.UUID      `json:"categoryId" binding:"required"`
 	Title       string         `json:"title" binding:"required,max=200"`
 	Content     string         `json:"content" binding:"required"`
-	ContentType string         `json:"content_type"`
+	ContentType string         `json:"contentType"`
 	Summary     string         `json:"summary"`
 	Tags        []string       `json:"tags"`
-	SourceURL   string         `json:"source_url"`
+	SourceURL   string         `json:"sourceUrl"`
 }
 
 type UpdateDocumentRequest struct {
@@ -45,8 +45,8 @@ type UpdateDocumentRequest struct {
 	Content       string   `json:"content"`
 	Summary       string   `json:"summary"`
 	Tags          []string `json:"tags"`
-	SourceURL     string   `json:"source_url"`
-	ChangeSummary string   `json:"change_summary"`
+	SourceURL     string   `json:"sourceUrl"`
+	ChangeSummary string   `json:"changeSummary"`
 }
 
 type SearchRequest struct {
@@ -58,32 +58,32 @@ type SearchRequest struct {
 
 type CategoryResponse struct {
 	ID          uuid.UUID          `json:"id"`
-	ParentID    *uuid.UUID         `json:"parent_id"`
+	ParentID    *uuid.UUID         `json:"parentId"`
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
-	SortOrder   int                `json:"sort_order"`
+	SortOrder   int                `json:"sortOrder"`
 	Status      string             `json:"status"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
 	Children    []CategoryResponse `json:"children,omitempty"`
 }
 
 type DocumentResponse struct {
 	ID           uuid.UUID `json:"id"`
-	CategoryID   uuid.UUID `json:"category_id"`
+	CategoryID   uuid.UUID `json:"categoryId"`
 	Title        string    `json:"title"`
 	Content      string    `json:"content"`
-	ContentType  string    `json:"content_type"`
+	ContentType  string    `json:"contentType"`
 	Summary      string    `json:"summary"`
 	Tags         []string  `json:"tags"`
-	SourceURL    string    `json:"source_url"`
-	AuthorID     *uuid.UUID `json:"author_id"`
+	SourceURL    string    `json:"sourceUrl"`
+	AuthorID     *uuid.UUID `json:"authorId"`
 	Version      int       `json:"version"`
 	Status       string    `json:"status"`
-	ViewCount    int       `json:"view_count"`
-	LikeCount    int       `json:"like_count"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ViewCount    int       `json:"viewCount"`
+	LikeCount    int       `json:"likeCount"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 	Category     *CategoryResponse `json:"category,omitempty"`
 	Author       *AuthorInfo      `json:"author,omitempty"`
 }
@@ -91,8 +91,8 @@ type DocumentResponse struct {
 type AuthorInfo struct {
 	ID          uuid.UUID `json:"id"`
 	Username    string    `json:"username"`
-	DisplayName string    `json:"display_name"`
-	AvatarURL   string    `json:"avatar_url"`
+	DisplayName string    `json:"displayName"`
+	AvatarURL   string    `json:"avatarUrl"`
 }
 
 // 知识分类管理

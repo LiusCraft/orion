@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/cdnagent/cdnagent/internal/ai"
 	"github.com/cdnagent/cdnagent/internal/api/handlers"
 	"github.com/cdnagent/cdnagent/internal/api/middleware"
 	"github.com/cdnagent/cdnagent/internal/api/routes"
@@ -13,13 +14,20 @@ import (
 )
 
 type Server struct {
-	db     *gorm.DB
-	router *gin.Engine
+	db        *gorm.DB
+	aiService *ai.AIService
+	router    *gin.Engine
 }
 
 func NewServer(db *gorm.DB) (*Server, error) {
 	// 设置Gin模式
 	gin.SetMode(config.GlobalConfig.Server.Mode)
+
+	// 初始化AI服务
+	aiService, err := ai.NewAIService(&config.GlobalConfig.AI.LLM)
+	if err != nil {
+		return nil, err
+	}
 
 	// 创建路由器
 	router := gin.New()
@@ -32,8 +40,9 @@ func NewServer(db *gorm.DB) (*Server, error) {
 
 	// 创建服务器实例
 	server := &Server{
-		db:     db,
-		router: router,
+		db:        db,
+		aiService: aiService,
+		router:    router,
 	}
 
 	// 设置路由
@@ -56,7 +65,7 @@ func (s *Server) setupRoutes() {
 
 	// 初始化handlers
 	authHandler := handlers.NewAuthHandler(s.db)
-	chatHandler := handlers.NewChatHandler(s.db)
+	chatHandler := handlers.NewChatHandler(s.db, s.aiService)
 	knowledgeHandler := handlers.NewKnowledgeHandler(s.db)
 	toolHandler := handlers.NewToolHandler(s.db)
 	adminHandler := handlers.NewAdminHandler(s.db)

@@ -5,7 +5,7 @@ import "net/http"
 // ErrorResponse 错误响应结构
 type ErrorResponse struct {
 	Success   bool        `json:"success"`
-	ErrorCode int         `json:"error_code"`
+	ErrorCode int         `json:"errorCode"`
 	Message   string      `json:"message"`
 	Data      interface{} `json:"data,omitempty"`
 	Timestamp int64       `json:"timestamp"`
