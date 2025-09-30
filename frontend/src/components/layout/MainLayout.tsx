@@ -164,7 +164,11 @@ const MainLayout: React.FC = () => {
 
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: "pointer" }}>
-              <Avatar size="small" icon={<UserOutlined />} src={user?.avatarUrl} />
+              <Avatar
+                size="small"
+                icon={<UserOutlined />}
+                src={user?.avatarUrl}
+              />
               <div
                 style={{
                   display: "flex",
@@ -193,10 +197,6 @@ const MainLayout: React.FC = () => {
 
         <Content
           style={{
-            margin: "24px",
-            padding: "24px",
-            background: "#fff",
-            borderRadius: "6px",
             overflow: "auto",
           }}
         >

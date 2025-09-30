@@ -1,6 +1,9 @@
 /* Markdown 渲染样式 */
 .markdown-content {
     line-height: 1.6;
+    /* 防止长内容撑破容器 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* 避免第一个元素的顶部边距 */
@@ -20,6 +23,7 @@
     border-radius: 6px;
     margin: 8px 0;
     overflow: auto;
+    max-width: 100%;
 }
 
 /* 行内代码样式覆盖 */
