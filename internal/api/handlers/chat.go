@@ -607,6 +607,7 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
     // 2) 进行最多3轮的非流工具调用计划（使用 eino 消息以携带 tool_calls）
     planEino := h.aiService.ToEinoMessages(contextMessages)
     const maxIter = 3
+    toolCalled := false
     for iter := 0; iter < maxIter; iter++ {
         if len(toolInfos) == 0 {
             break
@@ -693,6 +694,8 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
                 }
                 _ = h.db.Model(&execRec).Updates(updates).Error
             }
+            // 标记本轮存在工具调用
+            toolCalled = true
 
             // 事件：结束
             if runErr != nil {
@@ -725,6 +728,17 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
             // 将工具结果追加到上下文
             planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: resultStr, ToolCallID: tc.ID})
         }
+    }
+
+    // 在有工具调用时，追加一条系统指令，要求总结工具输出给出清晰结论
+    if toolCalled {
+        summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
+            "- 先简要概括关键结果/指标；\n" +
+            "- 给出具体解决步骤或下一步行动；\n" +
+            "- 如工具失败或异常，解释原因与可行的补救办法；\n" +
+            "- 回答力求简洁、重点明确。\n" +
+            "若用户问题与CDN无关，也请尽力作答，不要拒绝。"
+        planEino = append(planEino, &schema.Message{Role: schema.System, Content: summarizeHint})
     }
 
     // 3) 最终流式回答（不再附带工具，避免再次触发调用）
