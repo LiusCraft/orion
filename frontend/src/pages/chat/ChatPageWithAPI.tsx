@@ -66,6 +66,9 @@ const ChatPage: React.FC = () => {
   const [streamingConversationId, setStreamingConversationId] = useState<
     string | null
   >(null);
+  // 规划阶段可视化（新）
+  const [planningActive, setPlanningActive] = useState(false);
+  const [planningNotes, setPlanningNotes] = useState<string[]>([]);
   const [pendingUserMessage, setPendingUserMessage] = useState<string>("");
   const [pendingConversationId, setPendingConversationId] = useState<
     string | null
@@ -226,6 +229,8 @@ const ChatPage: React.FC = () => {
         const eventData = JSON.parse(event.data);
         console.log("AI响应完成:", eventData.data);
         setIsStreaming(false);
+        setPlanningActive(false);
+        setPlanningNotes([]);
         setStreamingMessage("");
         setStreamingConversationId((prev) =>
           prev === conversationId ? null : prev,
@@ -269,6 +274,8 @@ const ChatPage: React.FC = () => {
         const eventData = JSON.parse(event.data);
         console.error("AI响应错误:", eventData.data);
         setIsStreaming(false);
+        setPlanningActive(false);
+        setPlanningNotes([]);
         setStreamingMessage("");
         setStreamingConversationId((prev) =>
           prev === conversationId ? null : prev,
@@ -289,6 +296,8 @@ const ChatPage: React.FC = () => {
     eventSource.onerror = (error) => {
       console.error("SSE连接错误:", error);
       setIsStreaming(false);
+      setPlanningActive(false);
+      setPlanningNotes([]);
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
@@ -304,6 +313,8 @@ const ChatPage: React.FC = () => {
     // 监听done事件
     eventSource.addEventListener("done", () => {
       setIsStreaming(false);
+      setPlanningActive(false);
+      setPlanningNotes([]);
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
@@ -381,6 +392,58 @@ const ChatPage: React.FC = () => {
         }
       },
     );
+
+    // 规划阶段事件（新）
+    eventSource.addEventListener("planning_start", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        setPlanningActive(true);
+        const data = eventData.data || {};
+        setPlanningNotes([
+          `开始规划：intent=${data.intentDetected ? "是" : "否"}`,
+        ]);
+      } catch (err) {
+        console.error("解析planning_start事件失败:", err);
+      }
+    });
+
+    eventSource.addEventListener("tools_loading_start", () => {
+      setPlanningNotes((prev) => [...prev, "加载工具中…"]);
+    });
+
+    eventSource.addEventListener("tools_loading_finished", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const n = eventData?.data?.toolCount ?? 0;
+        setPlanningNotes((prev) => [...prev, `工具加载完成：${n} 个可用`]);
+      } catch {}
+    });
+
+    eventSource.addEventListener("model_step_started", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const iter = eventData?.data?.iteration ?? 0;
+        setPlanningNotes((prev) => [...prev, `第 ${iter} 轮规划…`]);
+      } catch {}
+    });
+
+    eventSource.addEventListener("model_step_finished", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const iter = eventData?.data?.iteration ?? 0;
+        const has = eventData?.data?.hasToolCalls ? "产生工具调用" : "未产生工具调用";
+        setPlanningNotes((prev) => [...prev, `第 ${iter} 轮完成：${has}`]);
+      } catch {}
+    });
+
+    eventSource.addEventListener("planning_finished", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const skipped = !!eventData?.data?.skipped;
+        setPlanningNotes((prev) => [...prev, skipped ? "已跳过规划" : "规划完成"]);
+      } catch {}
+      setPlanningActive(false);
+    });
   };
 
   useEffect(() => {
@@ -1155,9 +1218,27 @@ const ChatPage: React.FC = () => {
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "flex-start",
-                            maxWidth: "70%",
-                          }}
-                        >
+                          maxWidth: "70%",
+                        }}
+                      >
+                          {/* 规划阶段提示（新） */}
+                          {planningActive && (
+                            <div style={{
+                              background: "#fffbe6",
+                              border: "1px solid #ffe58f",
+                              color: "#614700",
+                              padding: "8px 12px",
+                              borderRadius: 8,
+                              marginBottom: 8,
+                              width: "100%",
+                              fontSize: 12,
+                            }}>
+                              <div style={{ marginBottom: 4 }}>正在分析与选择工具…</div>
+                              {planningNotes.map((n, i) => (
+                                <div key={i}>• {n}</div>
+                              ))}
+                            </div>
+                          )}
                           {/* 工具调用过程（流式）——采用与历史消息相同风格 */}
                           {toolEventCards.length > 0 && (
                             <div style={{ marginTop: 8, width: "100%" }}>

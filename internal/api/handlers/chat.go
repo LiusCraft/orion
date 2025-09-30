@@ -1,26 +1,27 @@
 package handlers
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "strconv"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
 
-    "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
-    "gorm.io/gorm"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 
-    "github.com/cdnagent/cdnagent/internal/database/models"
-    "github.com/cdnagent/cdnagent/internal/services/ai"
-    pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
-    "github.com/cdnagent/cdnagent/internal/config"
-    "github.com/cdnagent/cdnagent/internal/constants"
-    einotool "github.com/cloudwego/eino/components/tool"
-    "github.com/cloudwego/eino/schema"
-    toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
-    "strings"
+	"strings"
+
+	"github.com/cdnagent/cdnagent/internal/config"
+	"github.com/cdnagent/cdnagent/internal/constants"
+	"github.com/cdnagent/cdnagent/internal/database/models"
+	"github.com/cdnagent/cdnagent/internal/services/ai"
+	toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
+	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/schema"
 )
 
 type ChatHandler struct {
@@ -46,31 +47,31 @@ type SendMessageRequest struct {
 }
 
 type ConversationResponse struct {
-    ID            uuid.UUID      `json:"id"`
-    Title         string         `json:"title"`
-    Context       models.JSONMap `json:"context"`
-    Status        string         `json:"status"`
-    TotalMessages int            `json:"totalMessages"`
-    LastMessageAt *time.Time     `json:"lastMessageAt"`
-    CreatedAt     time.Time      `json:"createdAt"`
-    UpdatedAt     time.Time      `json:"updatedAt"`
-    LastAIMessageStatus *string  `json:"lastAIMessageStatus"`
+	ID                  uuid.UUID      `json:"id"`
+	Title               string         `json:"title"`
+	Context             models.JSONMap `json:"context"`
+	Status              string         `json:"status"`
+	TotalMessages       int            `json:"totalMessages"`
+	LastMessageAt       *time.Time     `json:"lastMessageAt"`
+	CreatedAt           time.Time      `json:"createdAt"`
+	UpdatedAt           time.Time      `json:"updatedAt"`
+	LastAIMessageStatus *string        `json:"lastAIMessageStatus"`
 }
 
 type MessageResponse struct {
-    ID               uuid.UUID      `json:"id"`
-    ConversationID   uuid.UUID      `json:"conversationId"`
-    ParentMessageID  *uuid.UUID     `json:"parentMessageId"`
-    SenderType       string         `json:"senderType"`
-    Content          string         `json:"content"`
-    ContentType      string         `json:"contentType"`
-    Metadata         models.JSONMap `json:"metadata"`
-    TokenCount       *int           `json:"tokenCount"`
-    ProcessingTimeMs *int           `json:"processingTimeMs"`
-    Status           string         `json:"status"`
-    ErrorMessage     string         `json:"errorMessage"`
-    CreatedAt        time.Time      `json:"createdAt"`
-    UpdatedAt        time.Time      `json:"updatedAt"`
+	ID               uuid.UUID      `json:"id"`
+	ConversationID   uuid.UUID      `json:"conversationId"`
+	ParentMessageID  *uuid.UUID     `json:"parentMessageId"`
+	SenderType       string         `json:"senderType"`
+	Content          string         `json:"content"`
+	ContentType      string         `json:"contentType"`
+	Metadata         models.JSONMap `json:"metadata"`
+	TokenCount       *int           `json:"tokenCount"`
+	ProcessingTimeMs *int           `json:"processingTimeMs"`
+	Status           string         `json:"status"`
+	ErrorMessage     string         `json:"errorMessage"`
+	CreatedAt        time.Time      `json:"createdAt"`
+	UpdatedAt        time.Time      `json:"updatedAt"`
 }
 
 // SSE事件类型
@@ -126,13 +127,13 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 func (h *ChatHandler) GetConversations(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
-    // 分页参数（优先驼峰，兼容下划线）
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    pageSizeStr := c.Query("pageSize")
-    if pageSizeStr == "" {
-        pageSizeStr = c.DefaultQuery("page_size", "20")
-    }
-    pageSize, _ := strconv.Atoi(pageSizeStr)
+	// 分页参数（优先驼峰，兼容下划线）
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSizeStr := c.Query("pageSize")
+	if pageSizeStr == "" {
+		pageSizeStr = c.DefaultQuery("page_size", "20")
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
 	status := c.DefaultQuery("status", "active")
 
 	if page < 1 {
@@ -162,30 +163,30 @@ func (h *ChatHandler) GetConversations(c *gin.Context) {
 		return
 	}
 
-    var responses []ConversationResponse
-    for _, conv := range conversations {
-        var lastAI models.Message
-        var lastAIStatus *string
-        if err := h.db.Where("conversation_id = ? AND sender_type = ?", conv.ID, "ai").
-            Order("created_at DESC").
-            Limit(1).
-            First(&lastAI).Error; err == nil && lastAI.ID != uuid.Nil {
-            s := lastAI.Status
-            lastAIStatus = &s
-        }
+	var responses []ConversationResponse
+	for _, conv := range conversations {
+		var lastAI models.Message
+		var lastAIStatus *string
+		if err := h.db.Where("conversation_id = ? AND sender_type = ?", conv.ID, "ai").
+			Order("created_at DESC").
+			Limit(1).
+			First(&lastAI).Error; err == nil && lastAI.ID != uuid.Nil {
+			s := lastAI.Status
+			lastAIStatus = &s
+		}
 
-        responses = append(responses, ConversationResponse{
-            ID:                  conv.ID,
-            Title:               conv.Title,
-            Context:             conv.Context,
-            Status:              conv.Status,
-            TotalMessages:       conv.TotalMessages,
-            LastMessageAt:       conv.LastMessageAt,
-            CreatedAt:           conv.CreatedAt,
-            UpdatedAt:           conv.UpdatedAt,
-            LastAIMessageStatus: lastAIStatus,
-        })
-    }
+		responses = append(responses, ConversationResponse{
+			ID:                  conv.ID,
+			Title:               conv.Title,
+			Context:             conv.Context,
+			Status:              conv.Status,
+			TotalMessages:       conv.TotalMessages,
+			LastMessageAt:       conv.LastMessageAt,
+			CreatedAt:           conv.CreatedAt,
+			UpdatedAt:           conv.UpdatedAt,
+			LastAIMessageStatus: lastAIStatus,
+		})
+	}
 
 	result := map[string]interface{}{
 		"data": responses,
@@ -243,13 +244,13 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
-    // 分页参数（优先驼峰，兼容下划线）
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    pageSizeStr := c.Query("pageSize")
-    if pageSizeStr == "" {
-        pageSizeStr = c.DefaultQuery("page_size", "50")
-    }
-    pageSize, _ := strconv.Atoi(pageSizeStr)
+	// 分页参数（优先驼峰，兼容下划线）
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSizeStr := c.Query("pageSize")
+	if pageSizeStr == "" {
+		pageSizeStr = c.DefaultQuery("page_size", "50")
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
 
 	if page < 1 {
 		page = 1
@@ -258,8 +259,8 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		pageSize = 50
 	}
 
-    var messages []models.Message
-    var total int64
+	var messages []models.Message
+	var total int64
 
 	// 查询总数
 	h.db.Model(&models.Message{}).Where("conversation_id = ?", conversationID).Count(&total)
@@ -278,68 +279,68 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
-    // 组装AI消息的工具执行记录
-    // 收集AI消息ID
-    aiMsgIDs := make([]uuid.UUID, 0, len(messages))
-    for _, m := range messages {
-        if m.SenderType == "ai" {
-            aiMsgIDs = append(aiMsgIDs, m.ID)
-        }
-    }
+	// 组装AI消息的工具执行记录
+	// 收集AI消息ID
+	aiMsgIDs := make([]uuid.UUID, 0, len(messages))
+	for _, m := range messages {
+		if m.SenderType == "ai" {
+			aiMsgIDs = append(aiMsgIDs, m.ID)
+		}
+	}
 
-    execMap := make(map[uuid.UUID][]models.ToolExecution)
-    if len(aiMsgIDs) > 0 {
-        var execs []models.ToolExecution
-        // 预加载Tool，便于展示名称/描述
-        if err := h.db.Preload("Tool").Where("message_id IN ?", aiMsgIDs).Order("created_at ASC").Find(&execs).Error; err == nil {
-            for _, e := range execs {
-                if e.MessageID != nil {
-                    execMap[*e.MessageID] = append(execMap[*e.MessageID], e)
-                }
-            }
-        }
-    }
+	execMap := make(map[uuid.UUID][]models.ToolExecution)
+	if len(aiMsgIDs) > 0 {
+		var execs []models.ToolExecution
+		// 预加载Tool，便于展示名称/描述
+		if err := h.db.Preload("Tool").Where("message_id IN ?", aiMsgIDs).Order("created_at ASC").Find(&execs).Error; err == nil {
+			for _, e := range execs {
+				if e.MessageID != nil {
+					execMap[*e.MessageID] = append(execMap[*e.MessageID], e)
+				}
+			}
+		}
+	}
 
-    var responses []MessageResponse
-    for _, msg := range messages {
-        // 合并工具执行记录到 metadata.tools
-        meta := msg.Metadata
-        if meta == nil {
-            meta = models.JSONMap{}
-        }
-        if execs, ok := execMap[msg.ID]; ok && len(execs) > 0 {
-            toolsArr := make([]map[string]interface{}, 0, len(execs))
-            for _, e := range execs {
-                toolsArr = append(toolsArr, map[string]interface{}{
-                    "toolId":          e.ToolID,
-                    "name":            e.Tool.Name,
-                    "displayName":     e.Tool.DisplayName,
-                    "toolType":        e.Tool.ToolType,
-                    "status":          e.Status,
-                    "executionTimeMs": e.ExecutionTimeMs,
-                    "inputParams":     e.InputParams,
-                    "outputResult":    e.OutputResult,
-                    "createdAt":       e.CreatedAt,
-                })
-            }
-            meta["tools"] = toolsArr
-        }
-        responses = append(responses, MessageResponse{
-            ID:               msg.ID,
-            ConversationID:   msg.ConversationID,
-            ParentMessageID:  msg.ParentMessageID,
-            SenderType:       msg.SenderType,
-            Content:          msg.Content,
-            ContentType:      msg.ContentType,
-            Metadata:         meta,
-            TokenCount:       msg.TokenCount,
-            ProcessingTimeMs: msg.ProcessingTimeMs,
-            Status:           msg.Status,
-            ErrorMessage:     msg.ErrorMessage,
-            CreatedAt:        msg.CreatedAt,
-            UpdatedAt:        msg.UpdatedAt,
-        })
-    }
+	var responses []MessageResponse
+	for _, msg := range messages {
+		// 合并工具执行记录到 metadata.tools
+		meta := msg.Metadata
+		if meta == nil {
+			meta = models.JSONMap{}
+		}
+		if execs, ok := execMap[msg.ID]; ok && len(execs) > 0 {
+			toolsArr := make([]map[string]interface{}, 0, len(execs))
+			for _, e := range execs {
+				toolsArr = append(toolsArr, map[string]interface{}{
+					"toolId":          e.ToolID,
+					"name":            e.Tool.Name,
+					"displayName":     e.Tool.DisplayName,
+					"toolType":        e.Tool.ToolType,
+					"status":          e.Status,
+					"executionTimeMs": e.ExecutionTimeMs,
+					"inputParams":     e.InputParams,
+					"outputResult":    e.OutputResult,
+					"createdAt":       e.CreatedAt,
+				})
+			}
+			meta["tools"] = toolsArr
+		}
+		responses = append(responses, MessageResponse{
+			ID:               msg.ID,
+			ConversationID:   msg.ConversationID,
+			ParentMessageID:  msg.ParentMessageID,
+			SenderType:       msg.SenderType,
+			Content:          msg.Content,
+			ContentType:      msg.ContentType,
+			Metadata:         meta,
+			TokenCount:       msg.TokenCount,
+			ProcessingTimeMs: msg.ProcessingTimeMs,
+			Status:           msg.Status,
+			ErrorMessage:     msg.ErrorMessage,
+			CreatedAt:        msg.CreatedAt,
+			UpdatedAt:        msg.UpdatedAt,
+		})
+	}
 
 	result := map[string]interface{}{
 		"data": responses,
@@ -408,33 +409,33 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	})
 
 	// 返回创建的用户消息
-    response := MessageResponse{
-        ID:               userMessage.ID,
-        ConversationID:   userMessage.ConversationID,
-        ParentMessageID:  userMessage.ParentMessageID,
-        SenderType:       userMessage.SenderType,
-        Content:          userMessage.Content,
-        ContentType:      userMessage.ContentType,
-        Metadata:         userMessage.Metadata,
-        TokenCount:       userMessage.TokenCount,
-        ProcessingTimeMs: userMessage.ProcessingTimeMs,
-        Status:           userMessage.Status,
-        ErrorMessage:     userMessage.ErrorMessage,
-        CreatedAt:        userMessage.CreatedAt,
-        UpdatedAt:        userMessage.UpdatedAt,
-    }
+	response := MessageResponse{
+		ID:               userMessage.ID,
+		ConversationID:   userMessage.ConversationID,
+		ParentMessageID:  userMessage.ParentMessageID,
+		SenderType:       userMessage.SenderType,
+		Content:          userMessage.Content,
+		ContentType:      userMessage.ContentType,
+		Metadata:         userMessage.Metadata,
+		TokenCount:       userMessage.TokenCount,
+		ProcessingTimeMs: userMessage.ProcessingTimeMs,
+		Status:           userMessage.Status,
+		ErrorMessage:     userMessage.ErrorMessage,
+		CreatedAt:        userMessage.CreatedAt,
+		UpdatedAt:        userMessage.UpdatedAt,
+	}
 
 	c.JSON(http.StatusCreated, pkgErrors.NewSuccessResponse(response))
 }
 
 // StreamMessages 处理SSE流式AI响应
 func (h *ChatHandler) StreamMessages(c *gin.Context) {
-    userID, _ := c.Get("user_id")
-    conversationID := c.Param("id")
+	userID, _ := c.Get("user_id")
+	conversationID := c.Param("id")
 
-    // 验证对话是否属于当前用户
-    var conversation models.Conversation
-    if err := h.db.Where("id = ? AND user_id = ?", conversationID, userID).First(&conversation).Error; err != nil {
+	// 验证对话是否属于当前用户
+	var conversation models.Conversation
+	if err := h.db.Where("id = ? AND user_id = ?", conversationID, userID).First(&conversation).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
 			40413,
 			"对话不存在",
@@ -443,68 +444,68 @@ func (h *ChatHandler) StreamMessages(c *gin.Context) {
 		return
 	}
 
-    // 选择父用户消息（优先使用显式传入的 userMessageId，其次回退到最近一条用户消息）
-    var parentUserMessage models.Message
-    userMsgIDStr := c.Query("userMessageId")
-    if userMsgIDStr == "" {
-        userMsgIDStr = c.Query("user_message_id")
-    }
-    if userMsgIDStr != "" {
-        if userMsgID, err := uuid.Parse(userMsgIDStr); err == nil {
-            if err := h.db.Where("id = ? AND conversation_id = ? AND sender_type = ?", userMsgID, conversationID, "user").First(&parentUserMessage).Error; err != nil {
-                c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
-                    40414,
-                    "未找到指定的用户消息",
-                    nil,
-                ))
-                return
-            }
-        } else {
-            c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
-                40014,
-                "userMessageId 无效",
-                err.Error(),
-            ))
-            return
-        }
-    } else {
-        if err := h.db.Where("conversation_id = ? AND sender_type = ?", conversationID, "user").
-            Order("created_at DESC").
-            First(&parentUserMessage).Error; err != nil {
-            c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
-                40414,
-                "未找到用户消息",
-                nil,
-            ))
-            return
-        }
-    }
+	// 选择父用户消息（优先使用显式传入的 userMessageId，其次回退到最近一条用户消息）
+	var parentUserMessage models.Message
+	userMsgIDStr := c.Query("userMessageId")
+	if userMsgIDStr == "" {
+		userMsgIDStr = c.Query("user_message_id")
+	}
+	if userMsgIDStr != "" {
+		if userMsgID, err := uuid.Parse(userMsgIDStr); err == nil {
+			if err := h.db.Where("id = ? AND conversation_id = ? AND sender_type = ?", userMsgID, conversationID, "user").First(&parentUserMessage).Error; err != nil {
+				c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
+					40414,
+					"未找到指定的用户消息",
+					nil,
+				))
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
+				40014,
+				"userMessageId 无效",
+				err.Error(),
+			))
+			return
+		}
+	} else {
+		if err := h.db.Where("conversation_id = ? AND sender_type = ?", conversationID, "user").
+			Order("created_at DESC").
+			First(&parentUserMessage).Error; err != nil {
+			c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
+				40414,
+				"未找到用户消息",
+				nil,
+			))
+			return
+		}
+	}
 
-    // 设置SSE响应头
-    c.Header("Content-Type", "text/event-stream")
-    c.Header("Cache-Control", "no-cache, no-transform")
-    c.Header("Connection", "keep-alive")
-    c.Header("Access-Control-Allow-Origin", "*")
-    c.Header("X-Accel-Buffering", "no")
+	// 设置SSE响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache, no-transform")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("X-Accel-Buffering", "no")
 
-    // 将同会话中仍处于 streaming 的AI消息标记为失败（被新流替代）
-    h.db.Model(&models.Message{}).Where("conversation_id = ? AND sender_type = ? AND status = ?", conversation.ID, "ai", "streaming").
-        Updates(map[string]interface{}{
-            "status":        "failed",
-            "error_message": "superseded by new stream",
-            "updated_at":    time.Now(),
-        })
+	// 将同会话中仍处于 streaming 的AI消息标记为失败（被新流替代）
+	h.db.Model(&models.Message{}).Where("conversation_id = ? AND sender_type = ? AND status = ?", conversation.ID, "ai", "streaming").
+		Updates(map[string]interface{}{
+			"status":        "failed",
+			"error_message": "superseded by new stream",
+			"updated_at":    time.Now(),
+		})
 
-    // 创建AI消息记录
-    aiMessage := models.Message{
-        ID:              uuid.New(),
-        ConversationID:  conversation.ID,
-        ParentMessageID: &parentUserMessage.ID,
-        SenderType:      "ai",
-        Content:         "",
-        ContentType:     "text",
-        Status:          "streaming",
-    }
+	// 创建AI消息记录
+	aiMessage := models.Message{
+		ID:              uuid.New(),
+		ConversationID:  conversation.ID,
+		ParentMessageID: &parentUserMessage.ID,
+		SenderType:      "ai",
+		Content:         "",
+		ContentType:     "text",
+		Status:          "streaming",
+	}
 
 	if err := h.db.Create(&aiMessage).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, pkgErrors.NewErrorResponse(
@@ -532,361 +533,436 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 		return
 	}
 
-    // 发送消息开始事件
-    startAt := time.Now()
-    h.writeSSEEvent(w, flusher, SSEEvent{
-        Type: "message_start",
-        Data: map[string]interface{}{
-            "messageId": message.ID,
-            "timestamp": time.Now(),
-        },
-    })
+	// 发送消息开始事件
+	startAt := time.Now()
+	h.writeSSEEvent(w, flusher, SSEEvent{
+		Type: "message_start",
+		Data: map[string]interface{}{
+			"messageId": message.ID,
+			"timestamp": time.Now(),
+		},
+	})
 
-    // 获取对话历史并构建上下文
-    // 重要：排除当前占位的AI消息以及任何处于 streaming 状态的消息，
-    // 确保传给模型的最后一条消息是用户消息，避免上下文错乱。
-    var historyMessages []models.Message
-    h.db.Where("conversation_id = ? AND status <> ?", conversationID, "streaming").
-        Order("created_at ASC").
-        Find(&historyMessages)
+	// 获取对话历史并构建上下文
+	// 重要：排除当前占位的AI消息以及任何处于 streaming 状态的消息，
+	// 确保传给模型的最后一条消息是用户消息，避免上下文错乱。
+	var historyMessages []models.Message
+	h.db.Where("conversation_id = ? AND status <> ?", conversationID, "streaming").
+		Order("created_at ASC").
+		Find(&historyMessages)
 
 	// 使用AI服务构建上下文消息
 	contextMessages := h.aiService.BuildContextMessages(historyMessages)
 
-    // 计划阶段：加载用户启用的 MCP 工具，先非流调用以完成工具调用，再进行最终流式回答
-    ctx := c.Request.Context()
+	// 计划阶段：加载用户启用的 MCP 工具，先非流调用以完成工具调用，再进行最终流式回答
+	ctx := c.Request.Context()
+	// 将请求ID与会话ID注入上下文，便于底层AI日志关联
+	if ridVal, ok := c.Get("request_id"); ok {
+		if rid, ok2 := ridVal.(string); ok2 {
+			ctx = context.WithValue(ctx, "request_id", rid)
+		}
+	}
+	ctx = context.WithValue(ctx, "conversation_id", conversationID)
 
-    // 1) 加载启用的 MCP 工具
-    curUserID, _ := c.Get("user_id")
-    var mcpTools []models.Tool
-    if err := h.db.Where("enabled = ? AND tool_type = ?", true, "mcp").Order("created_at ASC").Find(&mcpTools).Error; err != nil {
-        h.db.Model(&message).Updates(map[string]interface{}{
-            "status":        "failed",
-            "error_message": "加载MCP工具失败: " + err.Error(),
-            "updated_at":    time.Now(),
-        })
-        h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
-        return
-    }
+	// 配置：最多规划轮数与是否启用意图判断
+	agentCfg := config.GlobalConfig.AI.Agent
+	maxIter := agentCfg.ToolPlanMaxIter
+	if maxIter <= 0 {
+		maxIter = 1
+	}
 
-    // 构建 Eino 工具集合与名称到可调用实例的映射
-    type invokable interface {
-        InvokableRun(ctx context.Context, argumentsInJSON string, opts ...interface{}) (string, error)
-    }
-    // 为避免接口不一致，这里采用更宽松的调用，实际断言在执行时进行
-    var toolInfos []*schema.ToolInfo
-    invokers := make(map[string]interface{}) // name -> tool(BaseTool)
-    var closers []func() error
-    for _, t := range mcpTools {
-        prefix := t.Name
-        allowList := ""
-        if v, ok := t.Config["allowTools"]; ok {
-            if s, ok2 := v.(string); ok2 {
-                allowList = s
-            }
-        }
-        tools, closer, err := toolsSvc.BuildMCPTools(ctx, map[string]interface{}(t.Config), prefix, allowList)
-        if err != nil {
-            // 不阻断：某个MCP失败，继续其它
-            continue
-        }
-        closers = append(closers, closer)
-        for _, bt := range tools {
-            if info, err := bt.Info(ctx); err == nil {
-                toolInfos = append(toolInfos, info)
-                invokers[info.Name] = bt
-            }
-        }
-    }
-    defer func() {
-        for _, f := range closers {
-            _ = f()
-        }
-    }()
+	// 先构造一份可用于规划/最终回答的上下文（eino）
+	planEino := h.aiService.ToEinoMessages(contextMessages)
 
-    // 2) 进行最多3轮的非流工具调用计划（使用 eino 消息以携带 tool_calls）
-    planEino := h.aiService.ToEinoMessages(contextMessages)
-    const maxIter = 3
-    toolCalled := false
-    for iter := 0; iter < maxIter; iter++ {
-        if len(toolInfos) == 0 {
-            break
-        }
-        // 调用一次生成，附带tools（直接使用 eino 消息）
-        msg, err := h.aiService.GenerateEinoMessage(ctx, planEino, toolInfos, &ai.GenerateOptions{})
-        if err != nil {
-            h.db.Model(&message).Updates(map[string]interface{}{
-                "status":        "failed",
-                "error_message": err.Error(),
-                "updated_at":    time.Now(),
-            })
-            h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
-            return
-        }
-        // 若无工具调用，停止计划
-        if len(msg.ToolCalls) == 0 {
-            // 将assistant消息追加到上下文（保留原始结构）
-            planEino = append(planEino, msg)
-            break
-        }
-        // 追加assistant消息（包含工具调用），然后执行每个工具调用
-        planEino = append(planEino, msg)
-        for _, tc := range msg.ToolCalls {
-            toolName := tc.Function.Name
-            argsJSON := tc.Function.Arguments
-            // 事件：开始
-            h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_started", Data: map[string]interface{}{
-                "messageId": message.ID,
-                "toolName":  toolName,
-                "args":      argsJSON,
-                "timestamp": time.Now(),
-            }})
+	// 工具意图判断：默认开启时才判断
+	intentOK := true
+	intentReason := "plan"
 
-            // 建立执行记录（关联到对应MCP工具：根据前缀匹配）
-            var matchedTool *models.Tool
-            for i := range mcpTools {
-                if strings.HasPrefix(toolName, mcpTools[i].Name+"__") || toolName == mcpTools[i].Name {
-                    matchedTool = &mcpTools[i]
-                    break
-                }
-            }
-            execRec := models.ToolExecution{}
-            if matchedTool != nil {
-                execRec = models.ToolExecution{
-                    ID:           uuid.New(),
-                    ToolID:       matchedTool.ID,
-                    UserID:       curUserID.(uuid.UUID),
-                    MessageID:    &message.ID,
-                    InputParams:  models.JSONMap{"tool": toolName, "args": argsJSON},
-                    Status:       "pending",
-                    CreatedAt:    time.Now(),
-                }
-                _ = h.db.Create(&execRec).Error
-            }
+	// SSE：规划开始
+	h.writeSSEEvent(w, flusher, SSEEvent{Type: "planning_start", Data: map[string]interface{}{
+		"messageId":      message.ID,
+		"intentDetected": intentOK,
+		"intentReason":   intentReason,
+		"maxIterations":  maxIter,
+		"timestamp":      time.Now(),
+	}})
 
-            startTool := time.Now()
-            // 执行 InvokableRun
-            var resultStr string
-            var runErr error
-            if base := invokers[toolName]; base != nil {
-                // 类型断言为 InvokableTool
-                type inv interface{ InvokableRun(context.Context, string, ...einotool.Option) (string, error) }
-                if it, ok := base.(inv); ok {
-                    resultStr, runErr = it.InvokableRun(ctx, argsJSON)
-                } else {
-                    runErr = fmt.Errorf("tool %s not invokable", toolName)
-                }
-            } else {
-                runErr = fmt.Errorf("tool %s not found", toolName)
-            }
+	// 规划阶段（可选），并行成两个分支：跳过 vs 执行规划
+	toolCalled := false
+	if intentOK {
+		// 1) 加载启用的 MCP 工具
+		h.writeSSEEvent(w, flusher, SSEEvent{Type: "tools_loading_start", Data: map[string]interface{}{
+			"messageId": message.ID,
+			"timestamp": time.Now(),
+		}})
+		curUserID, _ := c.Get("user_id")
+		var mcpTools []models.Tool
+		if err := h.db.Where("enabled = ? AND tool_type = ?", true, "mcp").Order("created_at ASC").Find(&mcpTools).Error; err != nil {
+			h.db.Model(&message).Updates(map[string]interface{}{
+				"status":        "failed",
+				"error_message": "加载MCP工具失败: " + err.Error(),
+				"updated_at":    time.Now(),
+			})
+			h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+			return
+		}
+		// 构建 Eino 工具集合与名称到可调用实例的映射
+		type invokable interface {
+			InvokableRun(ctx context.Context, argumentsInJSON string, opts ...interface{}) (string, error)
+		}
+		// 为避免接口不一致，这里采用更宽松的调用，实际断言在执行时进行
+		var toolInfos []*schema.ToolInfo
+		invokers := make(map[string]interface{}) // name -> tool(BaseTool)
+		var closers []func() error
+		for _, t := range mcpTools {
+			prefix := t.Name
+			allowList := ""
+			if v, ok := t.Config["allowTools"]; ok {
+				if s, ok2 := v.(string); ok2 {
+					allowList = s
+				}
+			}
+			tools, closer, err := toolsSvc.BuildMCPTools(ctx, map[string]interface{}(t.Config), prefix, allowList)
+			if err != nil {
+				// 不阻断：某个MCP失败，继续其它
+				continue
+			}
+			closers = append(closers, closer)
+			for _, bt := range tools {
+				if info, err := bt.Info(ctx); err == nil {
+					toolInfos = append(toolInfos, info)
+					invokers[info.Name] = bt
+				}
+			}
+		}
+		h.writeSSEEvent(w, flusher, SSEEvent{Type: "tools_loading_finished", Data: map[string]interface{}{
+			"messageId": message.ID,
+			"toolCount": len(toolInfos),
+			"timestamp": time.Now(),
+		}})
+		defer func() {
+			for _, f := range closers {
+				_ = f()
+			}
+		}()
 
-            durMs := int(time.Since(startTool).Milliseconds())
-            if matchedTool != nil {
-                updates := map[string]interface{}{
-                    "execution_time_ms": durMs,
-                }
-                if runErr != nil {
-                    updates["status"] = "failed"
-                    updates["error_message"] = runErr.Error()
-                } else {
-                    updates["status"] = "success"
-                    updates["output_result"] = models.JSONMap{"raw": resultStr}
-                }
-                _ = h.db.Model(&execRec).Updates(updates).Error
-            }
-            // 标记本轮存在工具调用
-            toolCalled = true
+		// 2) 进行最多N轮的非流工具调用计划（使用 eino 消息以携带 tool_calls）
+		for iter := 0; iter < maxIter; iter++ {
+			h.writeSSEEvent(w, flusher, SSEEvent{Type: "model_step_started", Data: map[string]interface{}{
+				"messageId": message.ID,
+				"iteration": iter + 1,
+				"timestamp": time.Now(),
+			}})
+			if len(toolInfos) == 0 {
+				h.writeSSEEvent(w, flusher, SSEEvent{Type: "model_step_finished", Data: map[string]interface{}{
+					"messageId":    message.ID,
+					"iteration":    iter + 1,
+					"hasToolCalls": false,
+				}})
+				break
+			}
+			// 调用一次生成，附带tools（直接使用 eino 消息）
+			msg, err := h.aiService.GenerateEinoMessage(ctx, planEino, toolInfos, &ai.GenerateOptions{})
+			if err != nil {
+				h.db.Model(&message).Updates(map[string]interface{}{
+					"status":        "failed",
+					"error_message": err.Error(),
+					"updated_at":    time.Now(),
+				})
+				h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+				return
+			}
+			// 若无工具调用，停止计划（不追加该assistant内容，避免污染上下文）
+			if len(msg.ToolCalls) == 0 {
+				h.writeSSEEvent(w, flusher, SSEEvent{Type: "model_step_finished", Data: map[string]interface{}{
+					"messageId":    message.ID,
+					"iteration":    iter + 1,
+					"hasToolCalls": false,
+				}})
+				break
+			}
+			// 追加assistant消息（包含工具调用），然后执行每个工具调用
+			planEino = append(planEino, msg)
+			h.writeSSEEvent(w, flusher, SSEEvent{Type: "model_step_finished", Data: map[string]interface{}{
+				"messageId":    message.ID,
+				"iteration":    iter + 1,
+				"hasToolCalls": true,
+			}})
+			for _, tc := range msg.ToolCalls {
+				toolName := tc.Function.Name
+				argsJSON := tc.Function.Arguments
+				// 事件：开始
+				h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_started", Data: map[string]interface{}{
+					"messageId": message.ID,
+					"toolName":  toolName,
+					"args":      argsJSON,
+					"timestamp": time.Now(),
+				}})
 
-            // 事件：结束
-            if runErr != nil {
-                h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
-                    "messageId":  message.ID,
-                    "toolName":   toolName,
-                    "status":     "failed",
-                    "durationMs": durMs,
-                    "error":      runErr.Error(),
-                }})
-                // 将错误简述追加到上下文，避免中断对话
-                planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: fmt.Sprintf("{\"tool\":%q,\"error\":%q}", toolName, runErr.Error()), ToolCallID: tc.ID})
-                continue
-            }
+				// 建立执行记录（关联到对应MCP工具：根据前缀匹配）
+				var matchedTool *models.Tool
+				for i := range mcpTools {
+					if strings.HasPrefix(toolName, mcpTools[i].Name+"__") || toolName == mcpTools[i].Name {
+						matchedTool = &mcpTools[i]
+						break
+					}
+				}
+				execRec := models.ToolExecution{}
+				if matchedTool != nil {
+					execRec = models.ToolExecution{
+						ID:          uuid.New(),
+						ToolID:      matchedTool.ID,
+						UserID:      curUserID.(uuid.UUID),
+						MessageID:   &message.ID,
+						InputParams: models.JSONMap{"tool": toolName, "args": argsJSON},
+						Status:      "pending",
+						CreatedAt:   time.Now(),
+					}
+					_ = h.db.Create(&execRec).Error
+				}
 
-            // 结果预览（最多200字符）
-            preview := resultStr
-            if len(preview) > 200 {
-                preview = preview[:200] + "..."
-            }
-            h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
-                "messageId":     message.ID,
-                "toolName":      toolName,
-                "status":        "success",
-                "durationMs":    durMs,
-                "result":        resultStr,
-                "resultPreview": preview,
-            }})
+				startTool := time.Now()
+				// 执行 InvokableRun
+				var resultStr string
+				var runErr error
+				if base := invokers[toolName]; base != nil {
+					// 类型断言为 InvokableTool
+					type inv interface {
+						InvokableRun(context.Context, string, ...einotool.Option) (string, error)
+					}
+					if it, ok := base.(inv); ok {
+						resultStr, runErr = it.InvokableRun(ctx, argsJSON)
+					} else {
+						runErr = fmt.Errorf("tool %s not invokable", toolName)
+					}
+				} else {
+					runErr = fmt.Errorf("tool %s not found", toolName)
+				}
 
-            // 将工具结果追加到上下文
-            planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: resultStr, ToolCallID: tc.ID})
-        }
-    }
+				durMs := int(time.Since(startTool).Milliseconds())
+				if matchedTool != nil {
+					updates := map[string]interface{}{
+						"execution_time_ms": durMs,
+					}
+					if runErr != nil {
+						updates["status"] = "failed"
+						updates["error_message"] = runErr.Error()
+					} else {
+						updates["status"] = "success"
+						updates["output_result"] = models.JSONMap{"raw": resultStr}
+					}
+					_ = h.db.Model(&execRec).Updates(updates).Error
+				}
+				// 标记本轮存在工具调用
+				toolCalled = true
 
-    // 在有工具调用时，追加一条系统指令，要求总结工具输出给出清晰结论
-    if toolCalled {
-        summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
-            "- 先简要概括关键结果/指标；\n" +
-            "- 给出具体解决步骤或下一步行动；\n" +
-            "- 如工具失败或异常，解释原因与可行的补救办法；\n" +
-            "- 回答力求简洁、重点明确。\n" +
-            "若用户问题与CDN无关，也请尽力作答，不要拒绝。"
-        planEino = append(planEino, &schema.Message{Role: schema.System, Content: summarizeHint})
-    }
+				// 事件：结束
+				if runErr != nil {
+					h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
+						"messageId":  message.ID,
+						"toolName":   toolName,
+						"status":     "failed",
+						"durationMs": durMs,
+						"error":      runErr.Error(),
+					}})
+					// 将错误简述追加到上下文，避免中断对话
+					planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: fmt.Sprintf("{\"tool\":%q,\"error\":%q}", toolName, runErr.Error()), ToolCallID: tc.ID})
+					continue
+				}
 
-    // 3) 最终流式回答（不再附带工具，避免再次触发调用）
-    streamChan, err := h.aiService.ChatStreamEino(ctx, planEino, &ai.GenerateOptions{Stream: true})
-    if err != nil {
-        h.db.Model(&message).Updates(map[string]interface{}{
-            "status":             "failed",
-            "error_message":      err.Error(),
-            "updated_at":         time.Now(),
-            "processing_time_ms": int(time.Since(startAt).Milliseconds()),
-        })
-        h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
-        return
-    }
+				// 结果预览（最多200字符）
+				preview := resultStr
+				if len(preview) > 200 {
+					preview = preview[:200] + "..."
+				}
+				h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
+					"messageId":     message.ID,
+					"toolName":      toolName,
+					"status":        "success",
+					"durationMs":    durMs,
+					"result":        resultStr,
+					"resultPreview": preview,
+				}})
 
-    fullContent := ""
-    var finalTokenCount int
-    var finalFinishReason string
+				// 将工具结果追加到上下文
+				planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: resultStr, ToolCallID: tc.ID})
+			}
+		}
+		// 规划阶段完成（执行分支）
+		h.writeSSEEvent(w, flusher, SSEEvent{Type: "planning_finished", Data: map[string]interface{}{
+			"messageId":  message.ID,
+			"iterations": maxIter,
+			"toolCalled": toolCalled,
+			"timestamp":  time.Now(),
+		}})
+	} else {
+		// 规划阶段完成（跳过分支）
+		h.writeSSEEvent(w, flusher, SSEEvent{Type: "planning_finished", Data: map[string]interface{}{
+			"messageId":  message.ID,
+			"skipped":    true,
+			"iterations": 0,
+			"toolCalled": false,
+			"timestamp":  time.Now(),
+		}})
+	}
 
-    // 处理流式响应 + 心跳保持（可配置）
-    heartbeatSec := config.GlobalConfig.Server.SSEHeartbeat
-    if heartbeatSec <= 0 {
-        heartbeatSec = 15
-    }
-    ticker := time.NewTicker(time.Duration(heartbeatSec) * time.Second)
-    defer ticker.Stop()
+	// 在有工具调用时，追加一条系统指令，要求总结工具输出给出清晰结论
+	if toolCalled {
+		summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
+			"- 先简要概括关键结果/指标；\n" +
+			"- 给出具体解决步骤或下一步行动；\n" +
+			"- 如工具失败或异常，解释原因与可行的补救办法；\n" +
+			"- 回答力求简洁、重点明确。\n" +
+			"若用户问题与CDN无关，也请尽力作答，不要拒绝。"
+		planEino = append(planEino, &schema.Message{Role: schema.System, Content: summarizeHint})
+	}
+
+	// 3) 最终流式回答（不再附带工具，避免再次触发调用）
+	streamChan, err := h.aiService.ChatStreamEino(ctx, planEino, &ai.GenerateOptions{Stream: true})
+	if err != nil {
+		h.db.Model(&message).Updates(map[string]interface{}{
+			"status":             "failed",
+			"error_message":      err.Error(),
+			"updated_at":         time.Now(),
+			"processing_time_ms": int(time.Since(startAt).Milliseconds()),
+		})
+		h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+		return
+	}
+
+	fullContent := ""
+	var finalTokenCount int
+	var finalFinishReason string
+
+	// 处理流式响应 + 心跳保持（可配置）
+	heartbeatSec := config.GlobalConfig.Server.SSEHeartbeat
+	if heartbeatSec <= 0 {
+		heartbeatSec = 15
+	}
+	ticker := time.NewTicker(time.Duration(heartbeatSec) * time.Second)
+	defer ticker.Stop()
 
 STREAM_LOOP:
-    for {
-        select {
-        case <-ctx.Done():
-            // 客户端断开，标记为部分完成并保存已生成的内容
-            h.db.Model(&message).Updates(map[string]interface{}{
-                "status":             "partial",
-                "error_message":      "client canceled",
-                "content":            fullContent,
-                "updated_at":         time.Now(),
-                "processing_time_ms": int(time.Since(startAt).Milliseconds()),
-            })
-            return
-        case <-ticker.C:
-            // 周期性心跳，防止代理/连接超时
-            fmt.Fprintf(w, ": ping\n\n")
-            flusher.Flush()
-        case chunk, ok := <-streamChan:
-            if !ok {
-                // 流结束
-                break STREAM_LOOP
-            }
-            if chunk.Error != nil {
-                // 标记失败并保存已生成的部分内容
-                h.db.Model(&message).Updates(map[string]interface{}{
-                    "status":             "failed",
-                    "error_message":      chunk.Error.Error(),
-                    "content":            fullContent,
-                    "updated_at":         time.Now(),
-                    "processing_time_ms": int(time.Since(startAt).Milliseconds()),
-                })
-                h.writeSSEEvent(w, flusher, SSEEvent{
-                    Type: "ai_error",
-                    Data: map[string]interface{}{
-                        "messageId": message.ID,
-                        "error":     chunk.Error.Error(),
-                    },
-                })
-                return
-            }
-            if chunk.Delta != "" {
-                // 发送内容增量
-                h.writeSSEEvent(w, flusher, SSEEvent{
-                    Type: "content_delta",
-                    Data: map[string]interface{}{
-                        "messageId": message.ID,
-                        "delta":     chunk.Delta,
-                        "content":   chunk.Content,
-                    },
-                })
-            }
-            fullContent = chunk.Content
-            if chunk.Finished {
-                finalTokenCount = chunk.TokenCount
-                finalFinishReason = chunk.FinishReason
-                break STREAM_LOOP
-            }
-        }
-    }
+	for {
+		select {
+		case <-ctx.Done():
+			// 客户端断开，标记为部分完成并保存已生成的内容
+			h.db.Model(&message).Updates(map[string]interface{}{
+				"status":             "partial",
+				"error_message":      "client canceled",
+				"content":            fullContent,
+				"updated_at":         time.Now(),
+				"processing_time_ms": int(time.Since(startAt).Milliseconds()),
+			})
+			return
+		case <-ticker.C:
+			// 周期性心跳，防止代理/连接超时
+			fmt.Fprintf(w, ": ping\n\n")
+			flusher.Flush()
+		case chunk, ok := <-streamChan:
+			if !ok {
+				// 流结束
+				break STREAM_LOOP
+			}
+			if chunk.Error != nil {
+				// 标记失败并保存已生成的部分内容
+				h.db.Model(&message).Updates(map[string]interface{}{
+					"status":             "failed",
+					"error_message":      chunk.Error.Error(),
+					"content":            fullContent,
+					"updated_at":         time.Now(),
+					"processing_time_ms": int(time.Since(startAt).Milliseconds()),
+				})
+				h.writeSSEEvent(w, flusher, SSEEvent{
+					Type: "ai_error",
+					Data: map[string]interface{}{
+						"messageId": message.ID,
+						"error":     chunk.Error.Error(),
+					},
+				})
+				return
+			}
+			if chunk.Delta != "" {
+				// 发送内容增量
+				h.writeSSEEvent(w, flusher, SSEEvent{
+					Type: "content_delta",
+					Data: map[string]interface{}{
+						"messageId": message.ID,
+						"delta":     chunk.Delta,
+						"content":   chunk.Content,
+					},
+				})
+			}
+			fullContent = chunk.Content
+			if chunk.Finished {
+				finalTokenCount = chunk.TokenCount
+				finalFinishReason = chunk.FinishReason
+				break STREAM_LOOP
+			}
+		}
+	}
 
 	// 更新数据库中的AI消息
 	processingTime := int(time.Since(startAt).Milliseconds())
-    h.db.Model(&message).Updates(map[string]interface{}{
-        "content":          fullContent,
-        "status":           "completed",
-        "token_count":      finalTokenCount,
-        "processing_time_ms": processingTime,
-        "updated_at":       time.Now(),
-    })
+	h.db.Model(&message).Updates(map[string]interface{}{
+		"content":            fullContent,
+		"status":             "completed",
+		"token_count":        finalTokenCount,
+		"processing_time_ms": processingTime,
+		"updated_at":         time.Now(),
+	})
 
 	// 更新对话统计
-    h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
-        Updates(map[string]interface{}{
-            "total_messages":  gorm.Expr("total_messages + 1"),
-            "last_message_at": time.Now(),
-        })
+	h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
+		Updates(map[string]interface{}{
+			"total_messages":  gorm.Expr("total_messages + 1"),
+			"last_message_at": time.Now(),
+		})
 
-    // 发送消息完成事件
-    h.writeSSEEvent(w, flusher, SSEEvent{
-        Type: "message_complete",
-        Data: map[string]interface{}{
-            "messageId":        message.ID,
-            "tokenCount":       finalTokenCount,
-            "processingTimeMs": processingTime,
-            "finishReason":     finalFinishReason,
-            "timestamp":        time.Now(),
-        },
-    })
+	// 发送消息完成事件
+	h.writeSSEEvent(w, flusher, SSEEvent{
+		Type: "message_complete",
+		Data: map[string]interface{}{
+			"messageId":        message.ID,
+			"tokenCount":       finalTokenCount,
+			"processingTimeMs": processingTime,
+			"finishReason":     finalFinishReason,
+			"timestamp":        time.Now(),
+		},
+	})
 
-    // 发送完成事件后，再尝试生成并更新对话标题，避免阻塞完成信号
-    var convForTitle models.Conversation
-    if err := h.db.Where("id = ?", message.ConversationID).First(&convForTitle).Error; err == nil {
-        if convForTitle.Title == "" || convForTitle.Title == constants.DefaultConversationTitle {
-            var userMsg models.Message
-            if message.ParentMessageID != nil {
-                _ = h.db.Where("id = ?", *message.ParentMessageID).First(&userMsg).Error
-            }
-            titleCtx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
-            defer cancel()
-            if newTitle, err := h.aiService.GenerateTitle(titleCtx, userMsg.Content, fullContent); err == nil && newTitle != "" {
-                h.db.Model(&models.Conversation{}).
-                    Where("id = ? AND (title = '' OR title = ?)", message.ConversationID, constants.DefaultConversationTitle).
-                    Updates(map[string]interface{}{
-                        "title":      newTitle,
-                        "updated_at": time.Now(),
-                    })
+	// 发送完成事件后，再尝试生成并更新对话标题，避免阻塞完成信号
+	var convForTitle models.Conversation
+	if err := h.db.Where("id = ?", message.ConversationID).First(&convForTitle).Error; err == nil {
+		if convForTitle.Title == "" || convForTitle.Title == constants.DefaultConversationTitle {
+			var userMsg models.Message
+			if message.ParentMessageID != nil {
+				_ = h.db.Where("id = ?", *message.ParentMessageID).First(&userMsg).Error
+			}
+			titleCtx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+			defer cancel()
+			if newTitle, err := h.aiService.GenerateTitle(titleCtx, userMsg.Content, fullContent); err == nil && newTitle != "" {
+				h.db.Model(&models.Conversation{}).
+					Where("id = ? AND (title = '' OR title = ?)", message.ConversationID, constants.DefaultConversationTitle).
+					Updates(map[string]interface{}{
+						"title":      newTitle,
+						"updated_at": time.Now(),
+					})
 
-                h.writeSSEEvent(w, flusher, SSEEvent{
-                    Type: "conversation_title_updated",
-                    Data: map[string]interface{}{
-                        "conversationId": message.ConversationID,
-                        "title":          newTitle,
-                    },
-                })
-            }
-        }
-    }
+				h.writeSSEEvent(w, flusher, SSEEvent{
+					Type: "conversation_title_updated",
+					Data: map[string]interface{}{
+						"conversationId": message.ConversationID,
+						"title":          newTitle,
+					},
+				})
+			}
+		}
+	}
 
-    // 发送结束标记
-    fmt.Fprintf(w, "event: done\ndata: {}\n\n")
-    flusher.Flush()
+	// 发送结束标记
+	fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+	flusher.Flush()
 }
 
 func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, userInput string) {
@@ -901,15 +977,15 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 		return
 	}
 
-    // 发送消息开始事件
-    startAt := time.Now()
-    h.writeSSEEvent(w, flusher, SSEEvent{
-        Type: "message_start",
-        Data: map[string]interface{}{
-            "message_id": message.ID,
-            "timestamp":  time.Now(),
-        },
-    })
+	// 发送消息开始事件
+	startAt := time.Now()
+	h.writeSSEEvent(w, flusher, SSEEvent{
+		Type: "message_start",
+		Data: map[string]interface{}{
+			"message_id": message.ID,
+			"timestamp":  time.Now(),
+		},
+	})
 
 	// 模拟AI处理和响应
 	// TODO: 这里应该集成实际的AI引擎
@@ -944,9 +1020,9 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 		}
 	}
 
-    // 更新消息内容
-    tokenCount := len(fullContent) / 4 // 简单估算token数
-    processingTime := int(time.Since(startAt).Milliseconds())
+	// 更新消息内容
+	tokenCount := len(fullContent) / 4 // 简单估算token数
+	processingTime := int(time.Since(startAt).Milliseconds())
 
 	h.db.Model(&message).Updates(map[string]interface{}{
 		"content":            fullContent,
@@ -962,16 +1038,16 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 			"last_message_at": time.Now(),
 		})
 
-	// 发送消息完成事件
-    h.writeSSEEvent(w, flusher, SSEEvent{
-        Type: "message_complete",
-        Data: map[string]interface{}{
-            "message_id":         message.ID,
-            "token_count":        tokenCount,
-            "processing_time_ms": processingTime,
-            "timestamp":          time.Now(),
-        },
-    })
+		// 发送消息完成事件
+	h.writeSSEEvent(w, flusher, SSEEvent{
+		Type: "message_complete",
+		Data: map[string]interface{}{
+			"message_id":         message.ID,
+			"token_count":        tokenCount,
+			"processing_time_ms": processingTime,
+			"timestamp":          time.Now(),
+		},
+	})
 
 	// 发送结束标记
 	fmt.Fprintf(w, "event: done\ndata: {}\n\n")
@@ -1012,21 +1088,21 @@ func (h *ChatHandler) GetMessage(c *gin.Context) {
 		return
 	}
 
-    response := MessageResponse{
-        ID:               message.ID,
-        ConversationID:   message.ConversationID,
-        ParentMessageID:  message.ParentMessageID,
-        SenderType:       message.SenderType,
-        Content:          message.Content,
-        ContentType:      message.ContentType,
-        Metadata:         message.Metadata,
-        TokenCount:       message.TokenCount,
-        ProcessingTimeMs: message.ProcessingTimeMs,
-        Status:           message.Status,
-        ErrorMessage:     message.ErrorMessage,
-        CreatedAt:        message.CreatedAt,
-        UpdatedAt:        message.UpdatedAt,
-    }
+	response := MessageResponse{
+		ID:               message.ID,
+		ConversationID:   message.ConversationID,
+		ParentMessageID:  message.ParentMessageID,
+		SenderType:       message.SenderType,
+		Content:          message.Content,
+		ContentType:      message.ContentType,
+		Metadata:         message.Metadata,
+		TokenCount:       message.TokenCount,
+		ProcessingTimeMs: message.ProcessingTimeMs,
+		Status:           message.Status,
+		ErrorMessage:     message.ErrorMessage,
+		CreatedAt:        message.CreatedAt,
+		UpdatedAt:        message.UpdatedAt,
+	}
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(response))
 }
@@ -1099,15 +1175,15 @@ func (h *ChatHandler) RegenerateMessage(c *gin.Context) {
 		return
 	}
 
-    // 设置SSE响应头
-    c.Header("Content-Type", "text/event-stream")
-    c.Header("Cache-Control", "no-cache, no-transform")
-    c.Header("Connection", "keep-alive")
-    c.Header("Access-Control-Allow-Origin", "*")
-    c.Header("X-Accel-Buffering", "no")
+	// 设置SSE响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache, no-transform")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("X-Accel-Buffering", "no")
 
-    // 使用真实AI服务（与普通流式一致的路径）
-    h.streamAIResponseWithService(c, newAIMessage, conversationID)
+	// 使用真实AI服务（与普通流式一致的路径）
+	h.streamAIResponseWithService(c, newAIMessage, conversationID)
 }
 
 func (h *ChatHandler) DeleteConversation(c *gin.Context) {
