@@ -1,23 +1,25 @@
 package ai
 
 import (
-	"context"
-	"fmt"
-	"time"
+    "context"
+    "fmt"
+    "time"
+    "strings"
 
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/cdnagent/cdnagent/internal/config"
-	dbmodels "github.com/cdnagent/cdnagent/internal/database/models"
+    "github.com/cdnagent/cdnagent/internal/config"
+    dbmodels "github.com/cdnagent/cdnagent/internal/database/models"
+    "github.com/cdnagent/cdnagent/internal/constants"
 )
 
 // AIService AI服务接口
 type AIService struct {
-	chatModel model.ChatModel
-	config    *config.LLMConfig
+    chatModel model.ChatModel
+    config    *config.LLMConfig
 }
 
 // ChatMessage 标准化的聊天消息格式
@@ -386,16 +388,70 @@ func getTokenCount(usage *schema.TokenUsage) int {
 
 // intPtr 创建int指针
 func intPtr(i int) *int {
-	return &i
+    return &i
 }
 
 // maskAPIKey 隐藏API密钥的敏感部分
 func maskAPIKey(apiKey string) string {
-	if apiKey == "" {
-		return "<empty>"
-	}
-	if len(apiKey) <= 8 {
-		return "***"
-	}
-	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
+    if apiKey == "" {
+        return "<empty>"
+    }
+    if len(apiKey) <= 8 {
+        return "***"
+    }
+    return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
 }
+
+// GenerateTitle 根据用户消息与AI回复生成简短标题（中文，简洁，无标点）
+func (s *AIService) GenerateTitle(ctx context.Context, userText, aiText string) (string, error) {
+    // 兜底：用户内容截断
+    fallback := func() string {
+        rt := []rune(userText)
+        if len(rt) == 0 {
+            return constants.DefaultConversationTitle
+        }
+        if len(rt) > 16 {
+            rt = rt[:16]
+        }
+        return string(rt)
+    }
+
+    // 构造提示词
+    sys := "你是对话标题助手。请根据给定的用户问题和助理回答，生成一个简短的中文标题，要求：6-16个字，概括主题，避免客套话；不要包含标点、书名号或引号；只输出标题文本。"
+    prompt := "用户提问：\n" + userText + "\n\n助理回答：\n" + aiText + "\n\n现在只输出一个简短中文标题。"
+
+    // 最多给很少的tokens，保证快速返回
+    maxTokens := 24
+    resp, err := s.Chat(ctx, []ChatMessage{
+        {Role: "system", Content: sys},
+        {Role: "user", Content: prompt},
+    }, &GenerateOptions{MaxTokens: &maxTokens})
+    if err != nil {
+        return fallback(), err
+    }
+
+    title := resp.Content
+    // 清理常见符号与空白
+    replacer := strings.NewReplacer(
+        "\n", "", "\r", "", "\t", "",
+        "\"", "", "'", "", "“", "", "”", "", "‘", "", "’", "",
+        "【", "", "】", "", "（", "", "）", "", "(", "", ")", "",
+        "[", "", "]", "", "{", "", "}", "",
+        "。", "", "，", "", ",", "", "！", "", "?", "", "？", "",
+        "：", "", ":", "", "；", "", ";", "", "、", "", "—", "", "-", "",
+    )
+    title = replacer.Replace(title)
+    title = strings.TrimSpace(title)
+    if title == "" {
+        return fallback(), nil
+    }
+
+    // 限长
+    rt := []rune(title)
+    if len(rt) > 20 {
+        rt = rt[:20]
+    }
+    return string(rt), nil
+}
+
+// end

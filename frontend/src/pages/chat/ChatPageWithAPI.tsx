@@ -12,6 +12,8 @@ import {
   Divider,
   message,
   Spin,
+  Modal,
+  Tooltip,
 } from "antd";
 import {
   SendOutlined,
@@ -20,13 +22,15 @@ import {
   PlusOutlined,
   MoreOutlined,
   DeleteOutlined,
+  EditOutlined,
   BookOutlined,
   ToolOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { chatService } from "../../services/chatService";
-import type { Message as MessageType } from "../../types";
+import { DEFAULT_CONVERSATION_TITLE } from "../../constants";
+import type { Message as MessageType, Conversation, PaginationResponse } from "../../types";
 import MarkdownRenderer from "../../components/common/MarkdownRenderer";
 
 const { TextArea } = Input;
@@ -57,6 +61,8 @@ const ChatPage: React.FC = () => {
   const [pendingUserMessage, setPendingUserMessage] = useState<string>("");
   const [pendingConversationId, setPendingConversationId] = useState<string | null>(null);
   const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +86,8 @@ const ChatPage: React.FC = () => {
         : null,
     enabled: !!currentConversationId,
   });
+
+  const currentConvObj: Conversation | undefined = currentConversation?.conversation;
 
   // 创建新对话
   const createConversationMutation = useMutation({
@@ -204,8 +212,27 @@ const ChatPage: React.FC = () => {
         queryClient.invalidateQueries({
           queryKey: ["conversation", conversationId],
         });
+        // 刷新会话列表以获取可能的自动生成标题
+        queryClient.invalidateQueries({
+          queryKey: ["conversations"],
+        });
       } catch (error) {
         console.error("解析message_complete事件失败:", error);
+      }
+    });
+
+    // 可选：监听服务端发送的标题更新事件（无需等待刷新）
+    eventSource.addEventListener("conversation_title_updated", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const convId: string | undefined = eventData?.data?.conversationId;
+        // 刷新对话列表与对应会话详情，确保右侧标题同步更新
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        if (convId) {
+          queryClient.invalidateQueries({ queryKey: ["conversation", convId] });
+        }
+      } catch (error) {
+        console.error("解析conversation_title_updated事件失败:", error);
       }
     });
 
@@ -265,6 +292,12 @@ const ChatPage: React.FC = () => {
     }
   }, [streamingMessage, isStreaming, smartScroll, streamingConversationId, currentConversationId]);
 
+  // 切换会话时退出编辑态
+  useEffect(() => {
+    setIsEditingTitle(false);
+    setTitleDraft("");
+  }, [currentConversationId]);
+
   // 初次加载消息数据时强制滚动到底部
   useEffect(() => {
     if (currentConversation?.messages?.data && !isStreaming) {
@@ -322,8 +355,23 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  const handleNewConversation = () => {
-    createConversationMutation.mutate("新对话");
+  const handleNewConversation = async () => {
+    // 先刷新对话列表，避免使用过期数据
+    await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    await queryClient.refetchQueries({ queryKey: ["conversations"] });
+
+    const latest = queryClient.getQueryData<PaginationResponse<Conversation>>([
+      "conversations",
+    ]);
+    const existing = latest?.data?.find(
+      (c) => (c.title === DEFAULT_CONVERSATION_TITLE || !c.title) && c.status === "active" && c.totalMessages === 0
+    );
+    if (existing) {
+      setCurrentConversationId(existing.id);
+      message.info("已切换到现有空对话");
+      return;
+    }
+    createConversationMutation.mutate(DEFAULT_CONVERSATION_TITLE);
   };
 
   const handleDeleteConversation = (conversationId: string) => {
@@ -339,6 +387,11 @@ const ChatPage: React.FC = () => {
 
   const conversationMenuItems = [
     {
+      key: "rename",
+      icon: <EditOutlined />,
+      label: "重命名",
+    },
+    {
       key: "delete",
       icon: <DeleteOutlined />,
       label: "删除对话",
@@ -346,12 +399,74 @@ const ChatPage: React.FC = () => {
     },
   ];
 
+  const handleRenameConversation = (conv: Conversation) => {
+    let newTitle = conv.title || "";
+    Modal.confirm({
+      title: "重命名对话",
+      content: (
+        <Input
+          defaultValue={newTitle}
+          onChange={(e) => (newTitle = e.target.value)}
+          placeholder="请输入新的对话标题"
+          autoFocus
+          maxLength={200}
+          allowClear
+        />
+      ),
+      okText: "保存",
+      cancelText: "取消",
+      async onOk() {
+        const title = (newTitle || "").trim() || DEFAULT_CONVERSATION_TITLE;
+        await chatService.updateConversationTitle(conv.id, title);
+        message.success("标题已更新");
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        if (conv.id === currentConversationId) {
+          queryClient.invalidateQueries({ queryKey: ["conversation", conv.id] });
+        }
+      },
+    });
+  };
+
   const formatTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleTimeString("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
+  };
+
+  // 右侧标题编辑
+  const beginEditTitle = () => {
+    if (!currentConvObj || !currentConversationId) return;
+    setIsEditingTitle(true);
+    setTitleDraft(currentConvObj.title || DEFAULT_CONVERSATION_TITLE);
+  };
+
+  const saveEditTitle = async () => {
+    if (!currentConversationId) {
+      setIsEditingTitle(false);
+      return;
+    }
+    const newTitle = (titleDraft || "").trim() || DEFAULT_CONVERSATION_TITLE;
+    if (currentConvObj && newTitle === currentConvObj.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+    try {
+      await chatService.updateConversationTitle(currentConversationId, newTitle);
+      message.success("标题已更新");
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["conversation", currentConversationId] });
+    } catch (e) {
+      message.error("更新标题失败");
+    } finally {
+      setIsEditingTitle(false);
+    }
+  };
+
+  const cancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setTitleDraft("");
   };
 
   // 计算消息耗时（ms）：优先使用 updatedAt，否则用当前时间
@@ -525,7 +640,7 @@ const ChatPage: React.FC = () => {
               onClick={handleNewConversation}
               loading={createConversationMutation.isPending}
             >
-              新对话
+              {DEFAULT_CONVERSATION_TITLE}
             </Button>
           }
           style={{ height: "100%" }}
@@ -557,7 +672,13 @@ const ChatPage: React.FC = () => {
                     <Dropdown
                       menu={{
                         items: conversationMenuItems,
-                        onClick: () => handleDeleteConversation(conv.id),
+                        onClick: ({ key }) => {
+                          if (key === "delete") {
+                            handleDeleteConversation(conv.id);
+                          } else if (key === "rename") {
+                            handleRenameConversation(conv);
+                          }
+                        },
                       }}
                       trigger={["click"]}
                     >
@@ -574,9 +695,14 @@ const ChatPage: React.FC = () => {
                     description={
                       <Text type="secondary" style={{ fontSize: "12px" }}>
                         {conv.lastMessageAt
-                          ? new Date(conv.lastMessageAt).toLocaleDateString(
-                              "zh-CN",
-                            )
+                          ? new Date(conv.lastMessageAt).toLocaleString("zh-CN", {
+                              hour12: false,
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                           : ""}
                       </Text>
                     }
@@ -594,7 +720,32 @@ const ChatPage: React.FC = () => {
           title={
             <Space>
               <RobotOutlined />
-              <span>CDN AI Agent</span>
+              {isEditingTitle ? (
+                <Input
+                  size="small"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={saveEditTitle}
+                  onPressEnter={saveEditTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelEditTitle();
+                    }
+                  }}
+                  style={{ width: 260 }}
+                  autoFocus
+                />
+              ) : (
+                <Tooltip title="双击重命名" placement="top">
+                  <span
+                    onDoubleClick={beginEditTitle}
+                    style={{ userSelect: "none" }}
+                  >
+                  {currentConvObj?.title || DEFAULT_CONVERSATION_TITLE}
+                  </span>
+                </Tooltip>
+              )}
               <Badge status="processing" text="在线" />
               {currentConversationId && (
                 <Button

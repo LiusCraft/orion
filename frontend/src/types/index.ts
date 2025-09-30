@@ -190,6 +190,7 @@ export interface SSEEvent {
     | "tool_call_start"
     | "tool_call_result"
     | "message_complete"
+    | "conversation_title_updated"
     | "done";
   data: unknown;
 }
