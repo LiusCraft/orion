@@ -101,9 +101,10 @@ type Message struct {
 	ProcessingTimeMs *int          `gorm:"type:int" json:"processing_time_ms"`
 	Status           string        `gorm:"type:varchar(20);not null;default:'completed'" json:"status"` // pending, completed, failed, streaming
 	ErrorMessage     string        `gorm:"type:text" json:"error_message"`
-	CreatedAt        time.Time     `gorm:"type:timestamptz;not null;default:now();index" json:"created_at"`
-	Conversation     Conversation  `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
-	ParentMessage    *Message      `gorm:"foreignKey:ParentMessageID" json:"parent_message,omitempty"`
+    CreatedAt        time.Time     `gorm:"type:timestamptz;not null;default:now();index" json:"created_at"`
+    UpdatedAt        time.Time     `gorm:"type:timestamptz;not null;default:now()" json:"updated_at"`
+    Conversation     Conversation  `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE" json:"conversation,omitempty"`
+    ParentMessage    *Message      `gorm:"foreignKey:ParentMessageID" json:"parent_message,omitempty"`
 }
 
 // MessageAttachment 消息附件表

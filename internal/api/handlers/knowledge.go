@@ -383,10 +383,17 @@ func (h *KnowledgeHandler) CreateDocument(c *gin.Context) {
 }
 
 func (h *KnowledgeHandler) GetDocuments(c *gin.Context) {
-	// 分页和过滤参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	categoryID := c.Query("category_id")
+    // 分页和过滤参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "20")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
+    categoryID := c.Query("categoryId")
+    if categoryID == "" {
+        categoryID = c.Query("category_id")
+    }
 	status := c.DefaultQuery("status", "published")
 	tag := c.Query("tag")
 	search := c.Query("search")
@@ -452,15 +459,15 @@ func (h *KnowledgeHandler) GetDocuments(c *gin.Context) {
 		responses = append(responses, h.buildDocumentResponse(doc, categoryResp, authorResp))
 	}
 
-	result := map[string]interface{}{
-		"documents": responses,
-		"pagination": map[string]interface{}{
-			"page":       page,
-			"page_size":  pageSize,
-			"total":      total,
-			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
-		},
-	}
+    result := map[string]interface{}{
+        "data": responses,
+        "pagination": map[string]interface{}{
+            "page":      page,
+            "pageSize":  pageSize,
+            "total":     total,
+            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+        },
+    }
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }

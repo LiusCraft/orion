@@ -53,7 +53,10 @@ const ChatPage: React.FC = () => {
   const [sseConnection, setSseConnection] = useState<EventSource | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
   const [pendingUserMessage, setPendingUserMessage] = useState<string>("");
+  const [pendingConversationId, setPendingConversationId] = useState<string | null>(null);
+  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -99,8 +102,8 @@ const ChatPage: React.FC = () => {
         content: data.content,
       });
 
-      // 立即开始AI流式响应
-      startAIStreaming(data.conversationId);
+      // 立即开始AI流式响应，显式传入用户消息ID，避免错配
+      startAIStreaming(data.conversationId, userMessage.id);
 
       return userMessage;
     },
@@ -109,6 +112,7 @@ const ChatPage: React.FC = () => {
         queryKey: ["conversation", currentConversationId],
       });
       setPendingUserMessage("");
+      setPendingConversationId(null);
     },
     onError: () => {
       message.error("发送消息失败");
@@ -121,11 +125,10 @@ const ChatPage: React.FC = () => {
   // 删除对话
   const deleteConversationMutation = useMutation({
     mutationFn: chatService.deleteConversation,
-    onSuccess: () => {
+    onSuccess: (_data, deletedId: string) => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      if (currentConversationId === currentConversationId) {
-        setCurrentConversationId(null);
-      }
+      // 仅当删除的是当前会话时，清空当前会话ID
+      if (deletedId === currentConversationId) setCurrentConversationId(null);
       message.success("删除对话成功");
     },
     onError: () => {
@@ -155,9 +158,10 @@ const ChatPage: React.FC = () => {
   }, []);
 
   // 开始AI流式响应
-  const startAIStreaming = (conversationId: string) => {
+  const startAIStreaming = (conversationId: string, userMessageId?: string) => {
     setIsStreaming(true);
     setStreamingMessage("");
+    setStreamingConversationId(conversationId);
 
     // 清理之前的连接
     if (sseConnection) {
@@ -165,7 +169,7 @@ const ChatPage: React.FC = () => {
     }
 
     // 创建新的SSE连接
-    const eventSource = chatService.createChatStream(conversationId);
+    const eventSource = chatService.createChatStream(conversationId, userMessageId);
     setSseConnection(eventSource);
 
     // 监听特定类型的事件
@@ -195,6 +199,7 @@ const ChatPage: React.FC = () => {
         console.log("AI响应完成:", eventData.data);
         setIsStreaming(false);
         setStreamingMessage("");
+        setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
         // 刷新消息列表以显示完整的AI回复
         queryClient.invalidateQueries({
           queryKey: ["conversation", conversationId],
@@ -204,13 +209,21 @@ const ChatPage: React.FC = () => {
       }
     });
 
-    eventSource.addEventListener("error", (event: MessageEvent) => {
+    // 模型侧错误事件（自定义名，避免与连接错误冲突）
+    eventSource.addEventListener("ai_error", (event: MessageEvent) => {
       try {
         const eventData = JSON.parse(event.data);
         console.error("AI响应错误:", eventData.data);
         setIsStreaming(false);
         setStreamingMessage("");
+        setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
         message.error(`AI响应错误: ${eventData.data.error}`);
+        // 关闭连接并刷新消息，展示已保存的部分内容
+        eventSource.close();
+        setSseConnection(null);
+        queryClient.invalidateQueries({
+          queryKey: ["conversation", conversationId],
+        });
       } catch (error) {
         console.error("解析error事件失败:", error);
       }
@@ -223,6 +236,11 @@ const ChatPage: React.FC = () => {
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
+      setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+      // 刷新消息以获取已持久化的部分内容
+      queryClient.invalidateQueries({
+        queryKey: ["conversation", conversationId],
+      });
     };
 
     // 监听done事件
@@ -231,15 +249,21 @@ const ChatPage: React.FC = () => {
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
+      setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
     });
   };
 
   useEffect(() => {
-    // 流式消息变化时：只在用户在底部时才跟随滚动
-    if (streamingMessage && isStreaming) {
+    // 流式消息变化时：仅当当前对话正在流式时才跟随滚动
+    if (
+      streamingMessage &&
+      isStreaming &&
+      streamingConversationId &&
+      streamingConversationId === currentConversationId
+    ) {
       smartScroll();
     }
-  }, [streamingMessage, isStreaming, smartScroll]);
+  }, [streamingMessage, isStreaming, smartScroll, streamingConversationId, currentConversationId]);
 
   // 初次加载消息数据时强制滚动到底部
   useEffect(() => {
@@ -250,10 +274,10 @@ const ChatPage: React.FC = () => {
 
   // 用户发送的消息显示时强制滚动到底部
   useEffect(() => {
-    if (pendingUserMessage) {
+    if (pendingUserMessage && pendingConversationId === currentConversationId) {
       scrollToBottom();
     }
-  }, [pendingUserMessage]);
+  }, [pendingUserMessage, pendingConversationId, currentConversationId]);
 
   // 初始化：如果没有对话且有对话列表，选择第一个
   useEffect(() => {
@@ -280,9 +304,11 @@ const ChatPage: React.FC = () => {
 
     const messageContent = inputValue.trim();
     setIsLoading(true);
+    setLoadingConversationId(currentConversationId);
 
     // 立即显示用户消息
     setPendingUserMessage(messageContent);
+    setPendingConversationId(currentConversationId);
     setInputValue("");
 
     try {
@@ -292,6 +318,7 @@ const ChatPage: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+      setLoadingConversationId(null);
     }
   };
 
@@ -323,7 +350,15 @@ const ChatPage: React.FC = () => {
     return new Date(dateStr).toLocaleTimeString("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
     });
+  };
+
+  // 计算消息耗时（ms）：优先使用 updatedAt，否则用当前时间
+  const computeDurationMs = (msg: MessageType): number => {
+    const start = new Date(msg.createdAt).getTime();
+    const end = msg.updatedAt ? new Date(msg.updatedAt).getTime() : Date.now();
+    return Math.max(0, end - start);
   };
 
   const renderMessage = (message: MessageType) => {
@@ -366,15 +401,33 @@ const ChatPage: React.FC = () => {
                 minWidth: "20px",
                 wordBreak: "break-word",
               }}
-            >
-              {isUser ? (
-                <span style={{ whiteSpace: "pre-wrap" }}>
-                  {message.content}
-                </span>
-              ) : (
-                <MarkdownRenderer content={message.content} />
-              )}
+          >
+            {isUser ? (
+              <span style={{ whiteSpace: "pre-wrap" }}>
+                {message.content}
+              </span>
+            ) : (
+              <MarkdownRenderer content={message.content} />
+            )}
+          </div>
+
+          {!isUser && message.content && (message.status === "completed" || message.status === "failed" || message.status === "partial") ? (
+            <div style={{ fontSize: "12px", color: "#999", margin: "2px 0 0 0" }}>
+              {`耗时: ${Math.round(computeDurationMs(message) / 1000)}s`}
             </div>
+          ) : null}
+
+            {!isUser && (message.status === "failed" || message.status === "partial") && message.content ? (
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#faad14",
+                  marginTop: "2px",
+                }}
+              >
+                生成中断：以下为已生成的部分内容
+              </div>
+            ) : null}
 
             {/* 工具调用结果 - 从 metadata 中解析 */}
             {message.metadata?.tools &&
@@ -517,7 +570,7 @@ const ChatPage: React.FC = () => {
                   ]}
                 >
                   <List.Item.Meta
-                    title={<Text ellipsis>{conv.title}</Text>}
+                    title={<Space size={6}><Text ellipsis>{conv.title}</Text>{conv.id === streamingConversationId && (<Badge status="processing" text="生成中" />)}</Space>}
                     description={
                       <Text type="secondary" style={{ fontSize: "12px" }}>
                         {conv.lastMessageAt
@@ -631,7 +684,7 @@ const ChatPage: React.FC = () => {
                 {messages.map(renderMessage)}
 
                 {/* 显示待发送的用户消息 */}
-                {pendingUserMessage && (
+                {pendingUserMessage && pendingConversationId === currentConversationId && (
                   <div style={{ marginBottom: "24px" }}>
                     <div
                       style={{
@@ -687,7 +740,7 @@ const ChatPage: React.FC = () => {
                 )}
 
                 {/* 显示流式响应中的AI消息 */}
-                {isStreaming && streamingMessage && (
+                {isStreaming && streamingMessage && streamingConversationId === currentConversationId && (
                   <div style={{ marginBottom: "24px" }}>
                     <div style={{ display: "flex", gap: "12px" }}>
                       <Avatar
@@ -740,7 +793,7 @@ const ChatPage: React.FC = () => {
                   </div>
                 )}
 
-                {isLoading && !isStreaming && (
+                {isLoading && !isStreaming && loadingConversationId === currentConversationId && (
                   <div style={{ marginBottom: "24px" }}>
                     <div style={{ display: "flex", gap: "12px" }}>
                       <Avatar

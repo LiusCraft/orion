@@ -1,19 +1,20 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
-	"time"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strconv"
+    "time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/database/models"
-	"github.com/cdnagent/cdnagent/internal/services/ai"
-	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+    "github.com/cdnagent/cdnagent/internal/database/models"
+    "github.com/cdnagent/cdnagent/internal/services/ai"
+    pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+    "github.com/cdnagent/cdnagent/internal/config"
 )
 
 type ChatHandler struct {
@@ -39,29 +40,31 @@ type SendMessageRequest struct {
 }
 
 type ConversationResponse struct {
-	ID            uuid.UUID      `json:"id"`
-	Title         string         `json:"title"`
-	Context       models.JSONMap `json:"context"`
-	Status        string         `json:"status"`
-	TotalMessages int            `json:"totalMessages"`
-	LastMessageAt *time.Time     `json:"lastMessageAt"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
+    ID            uuid.UUID      `json:"id"`
+    Title         string         `json:"title"`
+    Context       models.JSONMap `json:"context"`
+    Status        string         `json:"status"`
+    TotalMessages int            `json:"totalMessages"`
+    LastMessageAt *time.Time     `json:"lastMessageAt"`
+    CreatedAt     time.Time      `json:"createdAt"`
+    UpdatedAt     time.Time      `json:"updatedAt"`
+    LastAIMessageStatus *string  `json:"lastAIMessageStatus"`
 }
 
 type MessageResponse struct {
-	ID               uuid.UUID      `json:"id"`
-	ConversationID   uuid.UUID      `json:"conversationId"`
-	ParentMessageID  *uuid.UUID     `json:"parentMessageId"`
-	SenderType       string         `json:"senderType"`
-	Content          string         `json:"content"`
-	ContentType      string         `json:"contentType"`
-	Metadata         models.JSONMap `json:"metadata"`
-	TokenCount       *int           `json:"tokenCount"`
-	ProcessingTimeMs *int           `json:"processingTimeMs"`
-	Status           string         `json:"status"`
-	ErrorMessage     string         `json:"errorMessage"`
-	CreatedAt        time.Time      `json:"createdAt"`
+    ID               uuid.UUID      `json:"id"`
+    ConversationID   uuid.UUID      `json:"conversationId"`
+    ParentMessageID  *uuid.UUID     `json:"parentMessageId"`
+    SenderType       string         `json:"senderType"`
+    Content          string         `json:"content"`
+    ContentType      string         `json:"contentType"`
+    Metadata         models.JSONMap `json:"metadata"`
+    TokenCount       *int           `json:"tokenCount"`
+    ProcessingTimeMs *int           `json:"processingTimeMs"`
+    Status           string         `json:"status"`
+    ErrorMessage     string         `json:"errorMessage"`
+    CreatedAt        time.Time      `json:"createdAt"`
+    UpdatedAt        time.Time      `json:"updatedAt"`
 }
 
 // SSE事件类型
@@ -117,9 +120,13 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 func (h *ChatHandler) GetConversations(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
-	// 分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+    // 分页参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "20")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
 	status := c.DefaultQuery("status", "active")
 
 	if page < 1 {
@@ -149,19 +156,30 @@ func (h *ChatHandler) GetConversations(c *gin.Context) {
 		return
 	}
 
-	var responses []ConversationResponse
-	for _, conv := range conversations {
-		responses = append(responses, ConversationResponse{
-			ID:            conv.ID,
-			Title:         conv.Title,
-			Context:       conv.Context,
-			Status:        conv.Status,
-			TotalMessages: conv.TotalMessages,
-			LastMessageAt: conv.LastMessageAt,
-			CreatedAt:     conv.CreatedAt,
-			UpdatedAt:     conv.UpdatedAt,
-		})
-	}
+    var responses []ConversationResponse
+    for _, conv := range conversations {
+        var lastAI models.Message
+        var lastAIStatus *string
+        if err := h.db.Where("conversation_id = ? AND sender_type = ?", conv.ID, "ai").
+            Order("created_at DESC").
+            Limit(1).
+            First(&lastAI).Error; err == nil && lastAI.ID != uuid.Nil {
+            s := lastAI.Status
+            lastAIStatus = &s
+        }
+
+        responses = append(responses, ConversationResponse{
+            ID:                  conv.ID,
+            Title:               conv.Title,
+            Context:             conv.Context,
+            Status:              conv.Status,
+            TotalMessages:       conv.TotalMessages,
+            LastMessageAt:       conv.LastMessageAt,
+            CreatedAt:           conv.CreatedAt,
+            UpdatedAt:           conv.UpdatedAt,
+            LastAIMessageStatus: lastAIStatus,
+        })
+    }
 
 	result := map[string]interface{}{
 		"data": responses,
@@ -219,9 +237,13 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
-	// 分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+    // 分页参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "50")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
 
 	if page < 1 {
 		page = 1
@@ -252,20 +274,21 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 
 	var responses []MessageResponse
 	for _, msg := range messages {
-		responses = append(responses, MessageResponse{
-			ID:               msg.ID,
-			ConversationID:   msg.ConversationID,
-			ParentMessageID:  msg.ParentMessageID,
-			SenderType:       msg.SenderType,
-			Content:          msg.Content,
-			ContentType:      msg.ContentType,
-			Metadata:         msg.Metadata,
-			TokenCount:       msg.TokenCount,
-			ProcessingTimeMs: msg.ProcessingTimeMs,
-			Status:           msg.Status,
-			ErrorMessage:     msg.ErrorMessage,
-			CreatedAt:        msg.CreatedAt,
-		})
+        responses = append(responses, MessageResponse{
+            ID:               msg.ID,
+            ConversationID:   msg.ConversationID,
+            ParentMessageID:  msg.ParentMessageID,
+            SenderType:       msg.SenderType,
+            Content:          msg.Content,
+            ContentType:      msg.ContentType,
+            Metadata:         msg.Metadata,
+            TokenCount:       msg.TokenCount,
+            ProcessingTimeMs: msg.ProcessingTimeMs,
+            Status:           msg.Status,
+            ErrorMessage:     msg.ErrorMessage,
+            CreatedAt:        msg.CreatedAt,
+            UpdatedAt:        msg.UpdatedAt,
+        })
 	}
 
 	result := map[string]interface{}{
@@ -335,32 +358,33 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	})
 
 	// 返回创建的用户消息
-	response := MessageResponse{
-		ID:               userMessage.ID,
-		ConversationID:   userMessage.ConversationID,
-		ParentMessageID:  userMessage.ParentMessageID,
-		SenderType:       userMessage.SenderType,
-		Content:          userMessage.Content,
-		ContentType:      userMessage.ContentType,
-		Metadata:         userMessage.Metadata,
-		TokenCount:       userMessage.TokenCount,
-		ProcessingTimeMs: userMessage.ProcessingTimeMs,
-		Status:           userMessage.Status,
-		ErrorMessage:     userMessage.ErrorMessage,
-		CreatedAt:        userMessage.CreatedAt,
-	}
+    response := MessageResponse{
+        ID:               userMessage.ID,
+        ConversationID:   userMessage.ConversationID,
+        ParentMessageID:  userMessage.ParentMessageID,
+        SenderType:       userMessage.SenderType,
+        Content:          userMessage.Content,
+        ContentType:      userMessage.ContentType,
+        Metadata:         userMessage.Metadata,
+        TokenCount:       userMessage.TokenCount,
+        ProcessingTimeMs: userMessage.ProcessingTimeMs,
+        Status:           userMessage.Status,
+        ErrorMessage:     userMessage.ErrorMessage,
+        CreatedAt:        userMessage.CreatedAt,
+        UpdatedAt:        userMessage.UpdatedAt,
+    }
 
 	c.JSON(http.StatusCreated, pkgErrors.NewSuccessResponse(response))
 }
 
 // StreamMessages 处理SSE流式AI响应
 func (h *ChatHandler) StreamMessages(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	conversationID := c.Param("id")
+    userID, _ := c.Get("user_id")
+    conversationID := c.Param("id")
 
-	// 验证对话是否属于当前用户
-	var conversation models.Conversation
-	if err := h.db.Where("id = ? AND user_id = ?", conversationID, userID).First(&conversation).Error; err != nil {
+    // 验证对话是否属于当前用户
+    var conversation models.Conversation
+    if err := h.db.Where("id = ? AND user_id = ?", conversationID, userID).First(&conversation).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
 			40413,
 			"对话不存在",
@@ -369,35 +393,68 @@ func (h *ChatHandler) StreamMessages(c *gin.Context) {
 		return
 	}
 
-	// 获取最后一条用户消息
-	var lastUserMessage models.Message
-	if err := h.db.Where("conversation_id = ? AND sender_type = ?", conversationID, "user").
-		Order("created_at DESC").
-		First(&lastUserMessage).Error; err != nil {
-		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
-			40414,
-			"未找到用户消息",
-			nil,
-		))
-		return
-	}
+    // 选择父用户消息（优先使用显式传入的 userMessageId，其次回退到最近一条用户消息）
+    var parentUserMessage models.Message
+    userMsgIDStr := c.Query("userMessageId")
+    if userMsgIDStr == "" {
+        userMsgIDStr = c.Query("user_message_id")
+    }
+    if userMsgIDStr != "" {
+        if userMsgID, err := uuid.Parse(userMsgIDStr); err == nil {
+            if err := h.db.Where("id = ? AND conversation_id = ? AND sender_type = ?", userMsgID, conversationID, "user").First(&parentUserMessage).Error; err != nil {
+                c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
+                    40414,
+                    "未找到指定的用户消息",
+                    nil,
+                ))
+                return
+            }
+        } else {
+            c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
+                40014,
+                "userMessageId 无效",
+                err.Error(),
+            ))
+            return
+        }
+    } else {
+        if err := h.db.Where("conversation_id = ? AND sender_type = ?", conversationID, "user").
+            Order("created_at DESC").
+            First(&parentUserMessage).Error; err != nil {
+            c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
+                40414,
+                "未找到用户消息",
+                nil,
+            ))
+            return
+        }
+    }
 
-	// 设置SSE响应头
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
+    // 设置SSE响应头
+    c.Header("Content-Type", "text/event-stream")
+    c.Header("Cache-Control", "no-cache, no-transform")
+    c.Header("Connection", "keep-alive")
+    c.Header("Access-Control-Allow-Origin", "*")
+    c.Header("X-Accel-Buffering", "no")
 
-	// 创建AI消息记录
-	aiMessage := models.Message{
-		ID:              uuid.New(),
-		ConversationID:  conversation.ID,
-		ParentMessageID: &lastUserMessage.ID,
-		SenderType:      "ai",
-		Content:         "",
-		ContentType:     "text",
-		Status:          "streaming",
-	}
+    // 将同会话中仍处于 streaming 的AI消息标记为失败（被新流替代）
+    h.db.Model(&models.Message{}).Where("conversation_id = ? AND sender_type = ? AND status = ?", conversation.ID, "ai", "streaming").
+        Updates(map[string]interface{}{
+            "status":        "failed",
+            "error_message": "superseded by new stream",
+            "updated_at":    time.Now(),
+        })
+
+    // 创建AI消息记录
+    aiMessage := models.Message{
+        ID:              uuid.New(),
+        ConversationID:  conversation.ID,
+        ParentMessageID: &parentUserMessage.ID,
+        SenderType:      "ai",
+        Content:         "",
+        ContentType:     "text",
+        Status:          "streaming",
+    }
 
 	if err := h.db.Create(&aiMessage).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, pkgErrors.NewErrorResponse(
@@ -425,90 +482,131 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 		return
 	}
 
-	// 发送消息开始事件
-	h.writeSSEEvent(w, flusher, SSEEvent{
-		Type: "message_start",
-		Data: map[string]interface{}{
-			"message_id": message.ID,
-			"timestamp":  time.Now(),
-		},
-	})
+    // 发送消息开始事件
+    startAt := time.Now()
+    h.writeSSEEvent(w, flusher, SSEEvent{
+        Type: "message_start",
+        Data: map[string]interface{}{
+            "messageId": message.ID,
+            "timestamp": time.Now(),
+        },
+    })
 
-	// 获取对话历史并构建上下文
-	var historyMessages []models.Message
-	h.db.Where("conversation_id = ?", conversationID).
-		Order("created_at ASC").
-		Find(&historyMessages)
+    // 获取对话历史并构建上下文
+    // 重要：排除当前占位的AI消息以及任何处于 streaming 状态的消息，
+    // 确保传给模型的最后一条消息是用户消息，避免上下文错乱。
+    var historyMessages []models.Message
+    h.db.Where("conversation_id = ? AND status <> ?", conversationID, "streaming").
+        Order("created_at ASC").
+        Find(&historyMessages)
 
 	// 使用AI服务构建上下文消息
 	contextMessages := h.aiService.BuildContextMessages(historyMessages)
 
-	// 调用AI服务进行流式对话
-	ctx := c.Request.Context()
-	streamChan, err := h.aiService.ChatStream(ctx, contextMessages, &ai.GenerateOptions{
-		Stream: true,
-	})
-	if err != nil {
-		h.writeSSEEvent(w, flusher, SSEEvent{
-			Type: "error",
-			Data: map[string]interface{}{
-				"message_id": message.ID,
-				"error":      err.Error(),
-			},
-		})
-		return
-	}
+    // 调用AI服务进行流式对话
+    ctx := c.Request.Context()
+    streamChan, err := h.aiService.ChatStream(ctx, contextMessages, &ai.GenerateOptions{
+        Stream: true,
+    })
+    if err != nil {
+        // 标记消息失败（无可用增量内容）
+        h.db.Model(&message).Updates(map[string]interface{}{
+            "status":             "failed",
+            "error_message":      err.Error(),
+            "updated_at":         time.Now(),
+            "processing_time_ms": int(time.Since(startAt).Milliseconds()),
+        })
+            h.writeSSEEvent(w, flusher, SSEEvent{
+                Type: "ai_error",
+                Data: map[string]interface{}{
+                    "messageId": message.ID,
+                    "error":     err.Error(),
+                },
+            })
+            return
+    }
 
 	fullContent := ""
 	var finalTokenCount int
 	var finalFinishReason string
 
-	// 处理流式响应
-	for chunk := range streamChan {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			if chunk.Error != nil {
-				h.writeSSEEvent(w, flusher, SSEEvent{
-					Type: "error",
-					Data: map[string]interface{}{
-						"message_id": message.ID,
-						"error":      chunk.Error.Error(),
-					},
-				})
-				return
-			}
+    // 处理流式响应 + 心跳保持（可配置）
+    heartbeatSec := config.GlobalConfig.Server.SSEHeartbeat
+    if heartbeatSec <= 0 {
+        heartbeatSec = 15
+    }
+    ticker := time.NewTicker(time.Duration(heartbeatSec) * time.Second)
+    defer ticker.Stop()
 
-			if chunk.Delta != "" {
-				// 发送内容增量
-				h.writeSSEEvent(w, flusher, SSEEvent{
-					Type: "content_delta",
-					Data: map[string]interface{}{
-						"message_id": message.ID,
-						"delta":      chunk.Delta,
-						"content":    chunk.Content,
-					},
-				})
-			}
-
-			fullContent = chunk.Content
-			if chunk.Finished {
-				finalTokenCount = chunk.TokenCount
-				finalFinishReason = chunk.FinishReason
-				break
-			}
-		}
-	}
+STREAM_LOOP:
+    for {
+        select {
+        case <-ctx.Done():
+            // 客户端断开，标记为部分完成并保存已生成的内容
+            h.db.Model(&message).Updates(map[string]interface{}{
+                "status":             "partial",
+                "error_message":      "client canceled",
+                "content":            fullContent,
+                "updated_at":         time.Now(),
+                "processing_time_ms": int(time.Since(startAt).Milliseconds()),
+            })
+            return
+        case <-ticker.C:
+            // 周期性心跳，防止代理/连接超时
+            fmt.Fprintf(w, ": ping\n\n")
+            flusher.Flush()
+        case chunk, ok := <-streamChan:
+            if !ok {
+                // 流结束
+                break STREAM_LOOP
+            }
+            if chunk.Error != nil {
+                // 标记失败并保存已生成的部分内容
+                h.db.Model(&message).Updates(map[string]interface{}{
+                    "status":             "failed",
+                    "error_message":      chunk.Error.Error(),
+                    "content":            fullContent,
+                    "updated_at":         time.Now(),
+                    "processing_time_ms": int(time.Since(startAt).Milliseconds()),
+                })
+                h.writeSSEEvent(w, flusher, SSEEvent{
+                    Type: "ai_error",
+                    Data: map[string]interface{}{
+                        "messageId": message.ID,
+                        "error":     chunk.Error.Error(),
+                    },
+                })
+                return
+            }
+            if chunk.Delta != "" {
+                // 发送内容增量
+                h.writeSSEEvent(w, flusher, SSEEvent{
+                    Type: "content_delta",
+                    Data: map[string]interface{}{
+                        "messageId": message.ID,
+                        "delta":     chunk.Delta,
+                        "content":   chunk.Content,
+                    },
+                })
+            }
+            fullContent = chunk.Content
+            if chunk.Finished {
+                finalTokenCount = chunk.TokenCount
+                finalFinishReason = chunk.FinishReason
+                break STREAM_LOOP
+            }
+        }
+    }
 
 	// 更新数据库中的AI消息
-	processingTime := 1500 // 实际处理时间
-	h.db.Model(&message).Updates(map[string]interface{}{
-		"content":            fullContent,
-		"status":             "completed",
-		"token_count":        finalTokenCount,
-		"processing_time_ms": processingTime,
-	})
+	processingTime := int(time.Since(startAt).Milliseconds())
+    h.db.Model(&message).Updates(map[string]interface{}{
+        "content":          fullContent,
+        "status":           "completed",
+        "token_count":      finalTokenCount,
+        "processing_time_ms": processingTime,
+        "updated_at":       time.Now(),
+    })
 
 	// 更新对话统计
 	h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
@@ -518,16 +616,16 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 		})
 
 	// 发送消息完成事件
-	h.writeSSEEvent(w, flusher, SSEEvent{
-		Type: "message_complete",
-		Data: map[string]interface{}{
-			"message_id":         message.ID,
-			"token_count":        finalTokenCount,
-			"processing_time_ms": processingTime,
-			"finish_reason":      finalFinishReason,
-			"timestamp":          time.Now(),
-		},
-	})
+    h.writeSSEEvent(w, flusher, SSEEvent{
+        Type: "message_complete",
+        Data: map[string]interface{}{
+            "messageId":        message.ID,
+            "tokenCount":       finalTokenCount,
+            "processingTimeMs": processingTime,
+            "finishReason":     finalFinishReason,
+            "timestamp":        time.Now(),
+        },
+    })
 
 	// 发送结束标记
 	fmt.Fprintf(w, "event: done\ndata: {}\n\n")
@@ -546,14 +644,15 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 		return
 	}
 
-	// 发送消息开始事件
-	h.writeSSEEvent(w, flusher, SSEEvent{
-		Type: "message_start",
-		Data: map[string]interface{}{
-			"message_id": message.ID,
-			"timestamp":  time.Now(),
-		},
-	})
+    // 发送消息开始事件
+    startAt := time.Now()
+    h.writeSSEEvent(w, flusher, SSEEvent{
+        Type: "message_start",
+        Data: map[string]interface{}{
+            "message_id": message.ID,
+            "timestamp":  time.Now(),
+        },
+    })
 
 	// 模拟AI处理和响应
 	// TODO: 这里应该集成实际的AI引擎
@@ -588,9 +687,9 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 		}
 	}
 
-	// 更新消息内容
-	tokenCount := len(fullContent) / 4 // 简单估算token数
-	processingTime := 1500             // 模拟处理时间
+    // 更新消息内容
+    tokenCount := len(fullContent) / 4 // 简单估算token数
+    processingTime := int(time.Since(startAt).Milliseconds())
 
 	h.db.Model(&message).Updates(map[string]interface{}{
 		"content":            fullContent,
@@ -607,15 +706,15 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 		})
 
 	// 发送消息完成事件
-	h.writeSSEEvent(w, flusher, SSEEvent{
-		Type: "message_complete",
-		Data: map[string]interface{}{
-			"message_id":         message.ID,
-			"token_count":        tokenCount,
-			"processing_time_ms": processingTime,
-			"timestamp":          time.Now(),
-		},
-	})
+    h.writeSSEEvent(w, flusher, SSEEvent{
+        Type: "message_complete",
+        Data: map[string]interface{}{
+            "message_id":         message.ID,
+            "token_count":        tokenCount,
+            "processing_time_ms": processingTime,
+            "timestamp":          time.Now(),
+        },
+    })
 
 	// 发送结束标记
 	fmt.Fprintf(w, "event: done\ndata: {}\n\n")
@@ -656,20 +755,21 @@ func (h *ChatHandler) GetMessage(c *gin.Context) {
 		return
 	}
 
-	response := MessageResponse{
-		ID:               message.ID,
-		ConversationID:   message.ConversationID,
-		ParentMessageID:  message.ParentMessageID,
-		SenderType:       message.SenderType,
-		Content:          message.Content,
-		ContentType:      message.ContentType,
-		Metadata:         message.Metadata,
-		TokenCount:       message.TokenCount,
-		ProcessingTimeMs: message.ProcessingTimeMs,
-		Status:           message.Status,
-		ErrorMessage:     message.ErrorMessage,
-		CreatedAt:        message.CreatedAt,
-	}
+    response := MessageResponse{
+        ID:               message.ID,
+        ConversationID:   message.ConversationID,
+        ParentMessageID:  message.ParentMessageID,
+        SenderType:       message.SenderType,
+        Content:          message.Content,
+        ContentType:      message.ContentType,
+        Metadata:         message.Metadata,
+        TokenCount:       message.TokenCount,
+        ProcessingTimeMs: message.ProcessingTimeMs,
+        Status:           message.Status,
+        ErrorMessage:     message.ErrorMessage,
+        CreatedAt:        message.CreatedAt,
+        UpdatedAt:        message.UpdatedAt,
+    }
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(response))
 }
@@ -742,14 +842,15 @@ func (h *ChatHandler) RegenerateMessage(c *gin.Context) {
 		return
 	}
 
-	// 设置SSE响应头
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
+    // 设置SSE响应头
+    c.Header("Content-Type", "text/event-stream")
+    c.Header("Cache-Control", "no-cache, no-transform")
+    c.Header("Connection", "keep-alive")
+    c.Header("Access-Control-Allow-Origin", "*")
+    c.Header("X-Accel-Buffering", "no")
 
-	// 模拟AI流式响应
-	h.streamAIResponse(c, newAIMessage, parentMessage.Content)
+    // 使用真实AI服务（与普通流式一致的路径）
+    h.streamAIResponseWithService(c, newAIMessage, conversationID)
 }
 
 func (h *ChatHandler) DeleteConversation(c *gin.Context) {

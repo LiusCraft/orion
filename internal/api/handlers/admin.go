@@ -22,66 +22,66 @@ func NewAdminHandler(db *gorm.DB) *AdminHandler {
 }
 
 type CreateUserRequest struct {
-	Username    string `json:"username" binding:"required,min=3,max=50"`
-	Email       string `json:"email" binding:"required,email"`
-	Password    string `json:"password" binding:"required,min=6"`
-	DisplayName string `json:"display_name" binding:"max=100"`
-	Role        string `json:"role" binding:"required,oneof=admin user viewer"`
-	Department  string `json:"department" binding:"max=50"`
-	Status      string `json:"status" binding:"oneof=active inactive"`
+    Username    string `json:"username" binding:"required,min=3,max=50"`
+    Email       string `json:"email" binding:"required,email"`
+    Password    string `json:"password" binding:"required,min=6"`
+    DisplayName string `json:"displayName" binding:"max=100"`
+    Role        string `json:"role" binding:"required,oneof=admin user viewer"`
+    Department  string `json:"department" binding:"max=50"`
+    Status      string `json:"status" binding:"oneof=active inactive"`
 }
 
 type UpdateUserRequest struct {
-	DisplayName string `json:"display_name" binding:"max=100"`
-	Role        string `json:"role" binding:"oneof=admin user viewer"`
-	Department  string `json:"department" binding:"max=50"`
-	Status      string `json:"status" binding:"oneof=active inactive suspended"`
+    DisplayName string `json:"displayName" binding:"max=100"`
+    Role        string `json:"role" binding:"oneof=admin user viewer"`
+    Department  string `json:"department" binding:"max=50"`
+    Status      string `json:"status" binding:"oneof=active inactive suspended"`
 }
 
 type SystemConfigRequest struct {
-	ConfigKey   string                 `json:"config_key" binding:"required,max=100"`
-	ConfigValue map[string]interface{} `json:"config_value" binding:"required"`
-	Description string                 `json:"description"`
-	ConfigType  string                 `json:"config_type" binding:"required,max=50"`
-	IsEncrypted bool                   `json:"is_encrypted"`
+    ConfigKey   string                 `json:"configKey" binding:"required,max=100"`
+    ConfigValue map[string]interface{} `json:"configValue" binding:"required"`
+    Description string                 `json:"description"`
+    ConfigType  string                 `json:"configType" binding:"required,max=50"`
+    IsEncrypted bool                   `json:"isEncrypted"`
 }
 
 type UserManagementResponse struct {
-	ID          uuid.UUID  `json:"id"`
-	Username    string     `json:"username"`
-	Email       string     `json:"email"`
-	DisplayName string     `json:"display_name"`
-	AvatarURL   string     `json:"avatar_url"`
-	Role        string     `json:"role"`
-	Department  string     `json:"department"`
-	Status      string     `json:"status"`
-	LastLoginAt *time.Time `json:"last_login_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+    ID          uuid.UUID  `json:"id"`
+    Username    string     `json:"username"`
+    Email       string     `json:"email"`
+    DisplayName string     `json:"displayName"`
+    AvatarURL   string     `json:"avatarUrl"`
+    Role        string     `json:"role"`
+    Department  string     `json:"department"`
+    Status      string     `json:"status"`
+    LastLoginAt *time.Time `json:"lastLoginAt"`
+    CreatedAt   time.Time  `json:"createdAt"`
+    UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type SystemConfigResponse struct {
-	ID            uuid.UUID              `json:"id"`
-	ConfigKey     string                 `json:"config_key"`
-	ConfigValue   map[string]interface{} `json:"config_value"`
-	Description   string                 `json:"description"`
-	ConfigType    string                 `json:"config_type"`
-	IsEncrypted   bool                   `json:"is_encrypted"`
-	UpdatedBy     *uuid.UUID             `json:"updated_by"`
-	CreatedAt     time.Time              `json:"created_at"`
-	UpdatedAt     time.Time              `json:"updated_at"`
-	UpdatedByUser *UserManagementResponse `json:"updated_by_user,omitempty"`
+    ID            uuid.UUID              `json:"id"`
+    ConfigKey     string                 `json:"configKey"`
+    ConfigValue   map[string]interface{} `json:"configValue"`
+    Description   string                 `json:"description"`
+    ConfigType    string                 `json:"configType"`
+    IsEncrypted   bool                   `json:"isEncrypted"`
+    UpdatedBy     *uuid.UUID             `json:"updatedBy"`
+    CreatedAt     time.Time              `json:"createdAt"`
+    UpdatedAt     time.Time              `json:"updatedAt"`
+    UpdatedByUser *UserManagementResponse `json:"updatedByUser,omitempty"`
 }
 
 type SystemStatsResponse struct {
-	TotalUsers        int64 `json:"total_users"`
-	ActiveUsers       int64 `json:"active_users"`
-	TotalConversations int64 `json:"total_conversations"`
-	TotalMessages     int64 `json:"total_messages"`
-	TotalDocuments    int64 `json:"total_documents"`
-	TotalTools        int64 `json:"total_tools"`
-	TodayMessages     int64 `json:"today_messages"`
-	TodayUsers        int64 `json:"today_users"`
+    TotalUsers         int64 `json:"totalUsers"`
+    ActiveUsers        int64 `json:"activeUsers"`
+    TotalConversations int64 `json:"totalConversations"`
+    TotalMessages      int64 `json:"totalMessages"`
+    TotalDocuments     int64 `json:"totalDocuments"`
+    TotalTools         int64 `json:"totalTools"`
+    TodayMessages      int64 `json:"todayMessages"`
+    TodayUsers         int64 `json:"todayUsers"`
 }
 
 // 用户管理
@@ -179,9 +179,13 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		return
 	}
 
-	// 分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+    // 分页参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "20")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
 	userRole := c.Query("role")
 	status := c.Query("status")
 	department := c.Query("department")
@@ -244,15 +248,15 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		})
 	}
 
-	result := map[string]interface{}{
-		"users": responses,
-		"pagination": map[string]interface{}{
-			"page":       page,
-			"page_size":  pageSize,
-			"total":      total,
-			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
-		},
-	}
+    result := map[string]interface{}{
+        "data": responses,
+        "pagination": map[string]interface{}{
+            "page":      page,
+            "pageSize":  pageSize,
+            "total":     total,
+            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+        },
+    }
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }

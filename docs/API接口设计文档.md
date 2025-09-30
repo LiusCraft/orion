@@ -13,14 +13,13 @@
 - **字符编码**: UTF-8
 - **时间格式**: ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)
 
-### 1.2 统一响应格式
+### 1.2 统一响应格式（camelCase）
 ```json
 {
-  "code": 200,
-  "message": "success",
+  "success": true,
+  "message": "optional",
   "data": {},
-  "timestamp": "2025-09-29T10:30:00Z",
-  "requestId": "uuid"
+  "timestamp": 1727586600
 }
 ```
 
@@ -34,14 +33,14 @@
 - `429` - 请求过于频繁
 - `500` - 服务器内部错误
 
-### 1.4 错误码定义
+### 1.4 错误响应结构（camelCase）
 ```json
 {
-  "code": 40001,
+  "success": false,
+  "errorCode": 40001,
   "message": "用户名或密码错误",
   "data": null,
-  "timestamp": "2025-09-29T10:30:00Z",
-  "requestId": "uuid"
+  "timestamp": 1727586600
 }
 ```
 
@@ -54,7 +53,7 @@
 
 ## 2. 认证授权模块
 
-### 2.1 用户登录
+### 2.1 用户登录（请求/响应均为 camelCase）
 ```http
 POST /auth/login
 Content-Type: application/json
@@ -82,7 +81,7 @@ Content-Type: application/json
       "displayName": "John Doe",
       "role": "user",
       "department": "运维",
-      "avatar": "https://..."
+      "avatarUrl": "https://..."
     }
   }
 }
@@ -126,30 +125,32 @@ Content-Type: application/json
 
 ### 3.1 获取对话列表
 ```http
-GET /conversations?page=1&size=20&status=active
+GET /conversations?page=1&pageSize=20&status=active
 Authorization: Bearer {accessToken}
 ```
 
 **响应**:
 ```json
 {
-  "code": 200,
+  "success": true,
   "data": {
-    "list": [
+    "data": [
       {
         "id": "uuid",
         "title": "CDN配置问题",
-        "lastMessage": "最后一条消息内容...",
         "lastMessageAt": "2025-09-29T10:30:00Z",
         "totalMessages": 15,
         "status": "active",
-        "createdAt": "2025-09-29T09:00:00Z"
+        "createdAt": "2025-09-29T09:00:00Z",
+        "updatedAt": "2025-09-29T11:00:00Z"
       }
     ],
-    "total": 100,
-    "page": 1,
-    "size": 20,
-    "totalPages": 5
+    "pagination": {
+      "page": 1,
+      "pageSize": 20,
+      "total": 100,
+      "totalPage": 5
+    }
   }
 }
 ```
@@ -227,14 +228,8 @@ Content-Type: application/json
 
 ### 3.6 流式对话 (SSE)
 ```http
-POST /conversations/{conversationId}/messages/stream
+GET /conversations/{conversationId}/stream?userMessageId={uuid}
 Authorization: Bearer {accessToken}
-Content-Type: application/json
-
-{
-  "content": "用户输入的消息内容",
-  "parentMessageId": "uuid(可选)"
-}
 ```
 
 **SSE响应格式**:
@@ -245,31 +240,31 @@ Cache-Control: no-cache
 Connection: keep-alive
 
 event: message_start
-data: {"messageId": "uuid", "conversationId": "uuid", "timestamp": "2025-09-29T10:30:00Z"}
+data: {"type": "message_start", "data": {"messageId": "uuid", "timestamp": "2025-09-29T10:30:00Z"}}
 
 event: content_delta
-data: {"messageId": "uuid", "delta": "这是"}
+data: {"type": "content_delta",  "data": {"messageId": "uuid", "delta": "这是"}}
 
 event: content_delta  
-data: {"messageId": "uuid", "delta": "流式"}
+data: {"type": "content_delta",  "data": {"messageId": "uuid", "delta": "流式"}}
 
 event: content_delta
-data: {"messageId": "uuid", "delta": "响应"}
+data: {"type": "content_delta",  "data": {"messageId": "uuid", "delta": "响应"}}
 
 event: tool_call_start
-data: {"messageId": "uuid", "toolName": "grafana_query", "toolId": "uuid"}
+data: {"type": "tool_call_start", "data": {"messageId": "uuid", "toolName": "grafanaQuery", "toolId": "uuid"}}
 
 event: tool_call_result
-data: {"messageId": "uuid", "toolId": "uuid", "result": {"status": "success", "data": {...}}}
+data: {"type": "tool_call_result", "data": {"messageId": "uuid", "toolId": "uuid", "result": {"status": "success", "data": {...}}}}
 
 event: content_delta
-data: {"messageId": "uuid", "delta": "根据监控数据显示..."}
+data: {"type": "content_delta",  "data": {"messageId": "uuid", "delta": "根据监控数据显示..."}}
 
 event: message_complete
-data: {"messageId": "uuid", "finalContent": "完整消息内容", "metadata": {"tokenCount": 150, "processingTime": 2500, "toolCalls": [...]}}
+data: {"type": "message_complete", "data": {"messageId": "uuid", "tokenCount": 150, "processingTimeMs": 2500, "finishReason": "stop"}}
 
 event: error
-data: {"code": 30001, "message": "AI服务暂时不可用", "messageId": "uuid"}
+data: {"type": "error", "data": {"error": "AI服务暂时不可用", "messageId": "uuid"}}
 
 event: done
 data: {}
@@ -450,44 +445,11 @@ Content-Type: application/json
 
 ### 5.1 获取工具列表
 ```http
-GET /tools?enabled=true&type=api
+GET /tools?enabled=true&toolType=api&page=1&pageSize=20
 Authorization: Bearer {accessToken}
 ```
 
-**响应**:
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "id": "uuid",
-      "name": "grafana_query",
-      "displayName": "Grafana监控查询",
-      "description": "查询Grafana监控数据",
-      "toolType": "api",
-      "enabled": true,
-      "config": {
-        "baseUrl": "https://grafana.example.com",
-        "endpoints": [
-          {
-            "name": "query_metrics",
-            "method": "GET",
-            "path": "/api/datasources/proxy/{datasourceId}/api/v1/query"
-          }
-        ]
-      },
-      "parameters": [
-        {
-          "name": "query",
-          "type": "string",
-          "required": true,
-          "description": "PromQL查询语句"
-        }
-      ]
-    }
-  ]
-}
-```
+响应统一包裹在 `data` + `pagination` 中，字段为 camelCase。
 
 ### 5.2 获取工具详情
 ```http

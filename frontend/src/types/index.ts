@@ -24,7 +24,7 @@ export interface UserInfo {
   username: string;
   email: string;
   displayName: string;
-  avatarURL?: string;
+  avatarUrl?: string;
   role: string;
   department?: string;
   status: string;
@@ -41,6 +41,7 @@ export interface Conversation {
   lastMessageAt?: string;
   createdAt: string;
   updatedAt: string;
+  lastAIMessageStatus?: string;
 }
 
 export interface Message {
@@ -56,6 +57,7 @@ export interface Message {
   status: string;
   errorMessage?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SendMessageRequest {
