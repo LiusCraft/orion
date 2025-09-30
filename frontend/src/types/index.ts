@@ -187,8 +187,8 @@ export interface SSEEvent {
   type:
     | "message_start"
     | "content_delta"
-    | "tool_call_start"
-    | "tool_call_result"
+    | "tool_call_started"
+    | "tool_call_finished"
     | "message_complete"
     | "conversation_title_updated"
     | "done";

@@ -6,10 +6,10 @@ import (
     "time"
     "strings"
 
-	"github.com/cloudwego/eino-ext/components/model/claude"
-	"github.com/cloudwego/eino-ext/components/model/openai"
-	"github.com/cloudwego/eino/components/model"
-	"github.com/cloudwego/eino/schema"
+    "github.com/cloudwego/eino-ext/components/model/claude"
+    "github.com/cloudwego/eino-ext/components/model/openai"
+    "github.com/cloudwego/eino/components/model"
+    "github.com/cloudwego/eino/schema"
 
     "github.com/cdnagent/cdnagent/internal/config"
     dbmodels "github.com/cdnagent/cdnagent/internal/database/models"
@@ -24,9 +24,11 @@ type AIService struct {
 
 // ChatMessage 标准化的聊天消息格式
 type ChatMessage struct {
-	Role     string                 `json:"role"` // system, user, assistant
-	Content  string                 `json:"content"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+    Role     string                 `json:"role"` // system, user, assistant
+    Content  string                 `json:"content"`
+    Metadata map[string]interface{} `json:"metadata,omitempty"`
+    // 用于工具消息：OpenAI工具调用需要tool消息携带tool_call_id
+    ToolCallID string `json:"tool_call_id,omitempty"`
 }
 
 // ChatResponse 聊天响应
@@ -180,6 +182,82 @@ func (s *AIService) Chat(ctx context.Context, messages []ChatMessage, opts *Gene
 			"usage": response.ResponseMeta,
 		},
 	}, nil
+}
+
+// GenerateMessage 低层封装：返回完整的schema.Message，支持注入Tools
+func (s *AIService) GenerateMessage(ctx context.Context, messages []ChatMessage, tools []*schema.ToolInfo, opts *GenerateOptions) (*schema.Message, error) {
+    einoMessages := s.convertToEinoMessages(messages)
+    modelOpts := s.buildModelOptions(opts)
+    if len(tools) > 0 {
+        modelOpts = append(modelOpts, model.WithTools(tools))
+    }
+    msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
+    if err != nil {
+        return nil, fmt.Errorf("chat model generate error: %w", err)
+    }
+    return msg, nil
+}
+
+// GenerateEinoMessage 直接使用eino消息，便于携带tool_calls
+func (s *AIService) GenerateEinoMessage(ctx context.Context, einoMessages []*schema.Message, tools []*schema.ToolInfo, opts *GenerateOptions) (*schema.Message, error) {
+    modelOpts := s.buildModelOptions(opts)
+    if len(tools) > 0 {
+        modelOpts = append(modelOpts, model.WithTools(tools))
+    }
+    msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
+    if err != nil {
+        return nil, fmt.Errorf("chat model generate error: %w", err)
+    }
+    return msg, nil
+}
+
+// ChatStreamEino 使用eino消息进行流式对话
+func (s *AIService) ChatStreamEino(ctx context.Context, einoMessages []*schema.Message, opts *GenerateOptions) (<-chan StreamChunk, error) {
+    modelOpts := s.buildModelOptions(opts)
+    streamReader, err := s.chatModel.Stream(ctx, einoMessages, modelOpts...)
+    if err != nil {
+        return nil, fmt.Errorf("chat model stream error: %w", err)
+    }
+    chunkChan := make(chan StreamChunk, 10)
+    go func() {
+        defer close(chunkChan)
+        defer streamReader.Close()
+        fullContent := ""
+        chunkID := fmt.Sprintf("chat-%d", time.Now().UnixNano())
+        for {
+            select {
+            case <-ctx.Done():
+                chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: ctx.Err()}
+                return
+            default:
+                chunk, err := streamReader.Recv()
+                if err != nil {
+                    if err.Error() == "EOF" || err.Error() == "stream finished" {
+                        var tokenCount int
+                        var finishReason string
+                        if chunk != nil && chunk.ResponseMeta != nil {
+                            if chunk.ResponseMeta.Usage != nil { tokenCount = chunk.ResponseMeta.Usage.TotalTokens }
+                            finishReason = chunk.ResponseMeta.FinishReason
+                        }
+                        chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, TokenCount: tokenCount, FinishReason: finishReason}
+                        return
+                    }
+                    chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: err}
+                    return
+                }
+                if chunk == nil { continue }
+                delta := chunk.Content
+                fullContent += delta
+                chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Delta: delta, Finished: false}
+            }
+        }
+    }()
+    return chunkChan, nil
+}
+
+// ToEinoMessages 导出转换函数，便于外部直接构造eino上下文
+func (s *AIService) ToEinoMessages(messages []ChatMessage) []*schema.Message {
+    return s.convertToEinoMessages(messages)
 }
 
 // ChatStream 流式对话
@@ -345,13 +423,14 @@ func (s *AIService) convertToEinoMessages(messages []ChatMessage) []*schema.Mess
 			role = schema.User // 默认为用户消息
 		}
 
-		einoMessages = append(einoMessages, &schema.Message{
-			Role:    role,
-			Content: msg.Content,
-		})
-	}
+        einoMessages = append(einoMessages, &schema.Message{
+            Role:       role,
+            Content:    msg.Content,
+            ToolCallID: msg.ToolCallID,
+        })
+    }
 
-	return einoMessages
+    return einoMessages
 }
 
 // buildModelOptions 构建模型选项

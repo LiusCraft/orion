@@ -187,9 +187,9 @@ type Tool struct {
 	Name        string                 `gorm:"type:varchar(100);uniqueIndex;not null" json:"name"`
 	DisplayName string                 `gorm:"type:varchar(100);not null" json:"display_name"`
 	Description string                 `gorm:"type:text" json:"description"`
-	ToolType    string                 `gorm:"type:varchar(50);not null;index" json:"tool_type"` // api, webhook, script
-	Config      map[string]interface{} `gorm:"type:jsonb;not null" json:"config"`
-	AuthConfig  map[string]interface{} `gorm:"type:jsonb" json:"auth_config"`
+    ToolType    string   `gorm:"type:varchar(50);not null;index" json:"tool_type"` // api, webhook, script, mcp
+    Config      JSONMap  `gorm:"type:jsonb;not null" json:"config"`
+    AuthConfig  JSONMap  `gorm:"type:jsonb" json:"auth_config"`
 	Enabled     bool                   `gorm:"not null;default:true;index" json:"enabled"`
 	CreatedBy   *uuid.UUID             `gorm:"type:uuid" json:"created_by"`
 	CreatedAt   time.Time              `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
@@ -203,8 +203,8 @@ type ToolExecution struct {
 	ToolID          uuid.UUID              `gorm:"type:uuid;not null;index" json:"tool_id"`
 	MessageID       *uuid.UUID             `gorm:"type:uuid;index" json:"message_id"`
 	UserID          uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
-	InputParams     map[string]interface{} `gorm:"type:jsonb;not null" json:"input_params"`
-	OutputResult    map[string]interface{} `gorm:"type:jsonb" json:"output_result"`
+    InputParams     JSONMap `gorm:"type:jsonb;not null" json:"input_params"`
+    OutputResult    JSONMap `gorm:"type:jsonb" json:"output_result"`
 	ExecutionTimeMs *int                   `gorm:"type:int" json:"execution_time_ms"`
 	Status          string                 `gorm:"type:varchar(20);not null;index" json:"status"` // pending, success, failed, timeout
 	ErrorMessage    string                 `gorm:"type:text" json:"error_message"`
@@ -218,7 +218,7 @@ type ToolExecution struct {
 type SystemConfig struct {
 	ID            uuid.UUID              `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	ConfigKey     string                 `gorm:"type:varchar(100);uniqueIndex;not null" json:"config_key"`
-	ConfigValue   map[string]interface{} `gorm:"type:jsonb;not null" json:"config_value"`
+    ConfigValue   JSONMap `gorm:"type:jsonb;not null" json:"config_value"`
 	Description   string                 `gorm:"type:text" json:"description"`
 	ConfigType    string                 `gorm:"type:varchar(50);not null;index" json:"config_type"` // llm, database, cache, etc.
 	IsEncrypted   bool                   `gorm:"not null;default:false" json:"is_encrypted"`

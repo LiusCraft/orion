@@ -8,15 +8,19 @@ import (
     "strconv"
     "time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+    "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
+    "gorm.io/gorm"
 
     "github.com/cdnagent/cdnagent/internal/database/models"
     "github.com/cdnagent/cdnagent/internal/services/ai"
     pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
     "github.com/cdnagent/cdnagent/internal/config"
     "github.com/cdnagent/cdnagent/internal/constants"
+    einotool "github.com/cloudwego/eino/components/tool"
+    "github.com/cloudwego/eino/schema"
+    toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
+    "strings"
 )
 
 type ChatHandler struct {
@@ -254,8 +258,8 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		pageSize = 50
 	}
 
-	var messages []models.Message
-	var total int64
+    var messages []models.Message
+    var total int64
 
 	// 查询总数
 	h.db.Model(&models.Message{}).Where("conversation_id = ?", conversationID).Count(&total)
@@ -274,8 +278,52 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
-	var responses []MessageResponse
-	for _, msg := range messages {
+    // 组装AI消息的工具执行记录
+    // 收集AI消息ID
+    aiMsgIDs := make([]uuid.UUID, 0, len(messages))
+    for _, m := range messages {
+        if m.SenderType == "ai" {
+            aiMsgIDs = append(aiMsgIDs, m.ID)
+        }
+    }
+
+    execMap := make(map[uuid.UUID][]models.ToolExecution)
+    if len(aiMsgIDs) > 0 {
+        var execs []models.ToolExecution
+        // 预加载Tool，便于展示名称/描述
+        if err := h.db.Preload("Tool").Where("message_id IN ?", aiMsgIDs).Order("created_at ASC").Find(&execs).Error; err == nil {
+            for _, e := range execs {
+                if e.MessageID != nil {
+                    execMap[*e.MessageID] = append(execMap[*e.MessageID], e)
+                }
+            }
+        }
+    }
+
+    var responses []MessageResponse
+    for _, msg := range messages {
+        // 合并工具执行记录到 metadata.tools
+        meta := msg.Metadata
+        if meta == nil {
+            meta = models.JSONMap{}
+        }
+        if execs, ok := execMap[msg.ID]; ok && len(execs) > 0 {
+            toolsArr := make([]map[string]interface{}, 0, len(execs))
+            for _, e := range execs {
+                toolsArr = append(toolsArr, map[string]interface{}{
+                    "toolId":          e.ToolID,
+                    "name":            e.Tool.Name,
+                    "displayName":     e.Tool.DisplayName,
+                    "toolType":        e.Tool.ToolType,
+                    "status":          e.Status,
+                    "executionTimeMs": e.ExecutionTimeMs,
+                    "inputParams":     e.InputParams,
+                    "outputResult":    e.OutputResult,
+                    "createdAt":       e.CreatedAt,
+                })
+            }
+            meta["tools"] = toolsArr
+        }
         responses = append(responses, MessageResponse{
             ID:               msg.ID,
             ConversationID:   msg.ConversationID,
@@ -283,7 +331,7 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
             SenderType:       msg.SenderType,
             Content:          msg.Content,
             ContentType:      msg.ContentType,
-            Metadata:         msg.Metadata,
+            Metadata:         meta,
             TokenCount:       msg.TokenCount,
             ProcessingTimeMs: msg.ProcessingTimeMs,
             Status:           msg.Status,
@@ -291,7 +339,7 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
             CreatedAt:        msg.CreatedAt,
             UpdatedAt:        msg.UpdatedAt,
         })
-	}
+    }
 
 	result := map[string]interface{}{
 		"data": responses,
@@ -505,32 +553,196 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 	// 使用AI服务构建上下文消息
 	contextMessages := h.aiService.BuildContextMessages(historyMessages)
 
-    // 调用AI服务进行流式对话
+    // 计划阶段：加载用户启用的 MCP 工具，先非流调用以完成工具调用，再进行最终流式回答
     ctx := c.Request.Context()
-    streamChan, err := h.aiService.ChatStream(ctx, contextMessages, &ai.GenerateOptions{
-        Stream: true,
-    })
+
+    // 1) 加载启用的 MCP 工具
+    curUserID, _ := c.Get("user_id")
+    var mcpTools []models.Tool
+    if err := h.db.Where("enabled = ? AND tool_type = ?", true, "mcp").Order("created_at ASC").Find(&mcpTools).Error; err != nil {
+        h.db.Model(&message).Updates(map[string]interface{}{
+            "status":        "failed",
+            "error_message": "加载MCP工具失败: " + err.Error(),
+            "updated_at":    time.Now(),
+        })
+        h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+        return
+    }
+
+    // 构建 Eino 工具集合与名称到可调用实例的映射
+    type invokable interface {
+        InvokableRun(ctx context.Context, argumentsInJSON string, opts ...interface{}) (string, error)
+    }
+    // 为避免接口不一致，这里采用更宽松的调用，实际断言在执行时进行
+    var toolInfos []*schema.ToolInfo
+    invokers := make(map[string]interface{}) // name -> tool(BaseTool)
+    var closers []func() error
+    for _, t := range mcpTools {
+        prefix := t.Name
+        allowList := ""
+        if v, ok := t.Config["allowTools"]; ok {
+            if s, ok2 := v.(string); ok2 {
+                allowList = s
+            }
+        }
+        tools, closer, err := toolsSvc.BuildMCPTools(ctx, map[string]interface{}(t.Config), prefix, allowList)
+        if err != nil {
+            // 不阻断：某个MCP失败，继续其它
+            continue
+        }
+        closers = append(closers, closer)
+        for _, bt := range tools {
+            if info, err := bt.Info(ctx); err == nil {
+                toolInfos = append(toolInfos, info)
+                invokers[info.Name] = bt
+            }
+        }
+    }
+    defer func() {
+        for _, f := range closers {
+            _ = f()
+        }
+    }()
+
+    // 2) 进行最多3轮的非流工具调用计划（使用 eino 消息以携带 tool_calls）
+    planEino := h.aiService.ToEinoMessages(contextMessages)
+    const maxIter = 3
+    for iter := 0; iter < maxIter; iter++ {
+        if len(toolInfos) == 0 {
+            break
+        }
+        // 调用一次生成，附带tools（直接使用 eino 消息）
+        msg, err := h.aiService.GenerateEinoMessage(ctx, planEino, toolInfos, &ai.GenerateOptions{})
+        if err != nil {
+            h.db.Model(&message).Updates(map[string]interface{}{
+                "status":        "failed",
+                "error_message": err.Error(),
+                "updated_at":    time.Now(),
+            })
+            h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+            return
+        }
+        // 若无工具调用，停止计划
+        if len(msg.ToolCalls) == 0 {
+            // 将assistant消息追加到上下文（保留原始结构）
+            planEino = append(planEino, msg)
+            break
+        }
+        // 追加assistant消息（包含工具调用），然后执行每个工具调用
+        planEino = append(planEino, msg)
+        for _, tc := range msg.ToolCalls {
+            toolName := tc.Function.Name
+            argsJSON := tc.Function.Arguments
+            // 事件：开始
+            h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_started", Data: map[string]interface{}{
+                "messageId": message.ID,
+                "toolName":  toolName,
+                "args":      argsJSON,
+                "timestamp": time.Now(),
+            }})
+
+            // 建立执行记录（关联到对应MCP工具：根据前缀匹配）
+            var matchedTool *models.Tool
+            for i := range mcpTools {
+                if strings.HasPrefix(toolName, mcpTools[i].Name+"__") || toolName == mcpTools[i].Name {
+                    matchedTool = &mcpTools[i]
+                    break
+                }
+            }
+            execRec := models.ToolExecution{}
+            if matchedTool != nil {
+                execRec = models.ToolExecution{
+                    ID:           uuid.New(),
+                    ToolID:       matchedTool.ID,
+                    UserID:       curUserID.(uuid.UUID),
+                    MessageID:    &message.ID,
+                    InputParams:  models.JSONMap{"tool": toolName, "args": argsJSON},
+                    Status:       "pending",
+                    CreatedAt:    time.Now(),
+                }
+                _ = h.db.Create(&execRec).Error
+            }
+
+            startTool := time.Now()
+            // 执行 InvokableRun
+            var resultStr string
+            var runErr error
+            if base := invokers[toolName]; base != nil {
+                // 类型断言为 InvokableTool
+                type inv interface{ InvokableRun(context.Context, string, ...einotool.Option) (string, error) }
+                if it, ok := base.(inv); ok {
+                    resultStr, runErr = it.InvokableRun(ctx, argsJSON)
+                } else {
+                    runErr = fmt.Errorf("tool %s not invokable", toolName)
+                }
+            } else {
+                runErr = fmt.Errorf("tool %s not found", toolName)
+            }
+
+            durMs := int(time.Since(startTool).Milliseconds())
+            if matchedTool != nil {
+                updates := map[string]interface{}{
+                    "execution_time_ms": durMs,
+                }
+                if runErr != nil {
+                    updates["status"] = "failed"
+                    updates["error_message"] = runErr.Error()
+                } else {
+                    updates["status"] = "success"
+                    updates["output_result"] = models.JSONMap{"raw": resultStr}
+                }
+                _ = h.db.Model(&execRec).Updates(updates).Error
+            }
+
+            // 事件：结束
+            if runErr != nil {
+                h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
+                    "messageId":  message.ID,
+                    "toolName":   toolName,
+                    "status":     "failed",
+                    "durationMs": durMs,
+                    "error":      runErr.Error(),
+                }})
+                // 将错误简述追加到上下文，避免中断对话
+                planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: fmt.Sprintf("{\"tool\":%q,\"error\":%q}", toolName, runErr.Error()), ToolCallID: tc.ID})
+                continue
+            }
+
+            // 结果预览（最多200字符）
+            preview := resultStr
+            if len(preview) > 200 {
+                preview = preview[:200] + "..."
+            }
+            h.writeSSEEvent(w, flusher, SSEEvent{Type: "tool_call_finished", Data: map[string]interface{}{
+                "messageId":     message.ID,
+                "toolName":      toolName,
+                "status":        "success",
+                "durationMs":    durMs,
+                "result":        resultStr,
+                "resultPreview": preview,
+            }})
+
+            // 将工具结果追加到上下文
+            planEino = append(planEino, &schema.Message{Role: schema.Tool, Content: resultStr, ToolCallID: tc.ID})
+        }
+    }
+
+    // 3) 最终流式回答（不再附带工具，避免再次触发调用）
+    streamChan, err := h.aiService.ChatStreamEino(ctx, planEino, &ai.GenerateOptions{Stream: true})
     if err != nil {
-        // 标记消息失败（无可用增量内容）
         h.db.Model(&message).Updates(map[string]interface{}{
             "status":             "failed",
             "error_message":      err.Error(),
             "updated_at":         time.Now(),
             "processing_time_ms": int(time.Since(startAt).Milliseconds()),
         })
-            h.writeSSEEvent(w, flusher, SSEEvent{
-                Type: "ai_error",
-                Data: map[string]interface{}{
-                    "messageId": message.ID,
-                    "error":     err.Error(),
-                },
-            })
-            return
+        h.writeSSEEvent(w, flusher, SSEEvent{Type: "ai_error", Data: map[string]interface{}{"messageId": message.ID, "error": err.Error()}})
+        return
     }
 
-	fullContent := ""
-	var finalTokenCount int
-	var finalFinishReason string
+    fullContent := ""
+    var finalTokenCount int
+    var finalFinishReason string
 
     // 处理流式响应 + 心跳保持（可配置）
     heartbeatSec := config.GlobalConfig.Server.SSEHeartbeat
