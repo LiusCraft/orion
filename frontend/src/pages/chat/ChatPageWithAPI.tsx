@@ -610,6 +610,7 @@ const ChatPage: React.FC = () => {
                 <Collapse
                   size="small"
                   activeKey={openToolPanels[message.id] ? [openToolPanels[message.id] as string] : undefined}
+                  destroyInactivePanel
                   onChange={(keys) => {
                     const arr = Array.isArray(keys) ? (keys as string[]) : [keys as string];
                     const k = arr.length > 0 ? arr[0] : undefined;

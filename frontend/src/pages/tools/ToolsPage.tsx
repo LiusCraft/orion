@@ -20,6 +20,7 @@ import {
   Spin,
   Alert,
   Select,
+  Collapse,
 } from "antd";
 import {
   ApiOutlined,
@@ -71,6 +72,12 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
   const [form] = Form.useForm();
   const [selectedType, setSelectedType] = useState<string>("");
   const [mcpProtocol, setMcpProtocol] = useState<string>("http_streamable");
+  const [createTestPreview, setCreateTestPreview] = useState<{
+    responseTime?: number;
+    toolCount?: number;
+    server?: Record<string, any>;
+    tools?: Array<Record<string, any>>;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const { data: toolTypes } = useQuery({
@@ -96,6 +103,36 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
     },
     onError: () => {
       message.error("工具创建失败");
+    },
+  });
+
+  // 创建表单内测试连接
+  const testCreateMutation = useMutation({
+    mutationFn: ({
+      toolType,
+      config,
+    }: {
+      toolType: string;
+      config: Record<string, unknown>;
+    }) => toolService.testTool({ toolType, config }),
+    onSuccess: (res: any) => {
+      if (res.success) {
+        message.success(res.message || "测试成功");
+        const details = res.details || {};
+        setCreateTestPreview({
+          responseTime: res.responseTime,
+          toolCount: details.toolCount,
+          server: details.server,
+          tools: details.tools,
+        });
+      } else {
+        message.error(res.message || "测试失败");
+        setCreateTestPreview(null);
+      }
+    },
+    onError: () => {
+      message.error("测试连接失败");
+      setCreateTestPreview(null);
     },
   });
 
@@ -137,9 +174,47 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
       // 为 mcp 类型设置默认值
       form.setFieldsValue({ protocol: "http_streamable", timeout: 15 });
       setMcpProtocol("http_streamable");
+      setCreateTestPreview(null);
     } else if (toolTemplate) {
       form.setFieldsValue(toolTemplate.defaultConfig);
+      setCreateTestPreview(null);
     }
+  };
+
+  const handleTestInCreate = () => {
+    const v = form.getFieldsValue();
+    const toolType = v.toolType as string;
+    if (!toolType) {
+      message.warning("请先选择工具类型");
+      return;
+    }
+    let config: Record<string, any> = {};
+    if (toolType === "mcp") {
+      const protocol = v.protocol as string;
+      config.protocol = protocol;
+      if (protocol === "http_streamable" || protocol === "sse") {
+        if (v.endpoint) config.endpoint = v.endpoint;
+        if (v.timeout) config.timeout = Number(v.timeout);
+        if (v.allowTools) config.allowTools = v.allowTools as string;
+        if (v.headersText) config.headers = v.headersText as string;
+        else config.headers = "";
+      } else if (protocol === "stdio") {
+        if (v.command) config.command = v.command;
+        if (v.args) config.args = v.args as string;
+        if (v.envText) config.env = v.envText as string;
+        else config.env = "";
+      }
+    } else {
+      const {
+        toolType: _tt,
+        name: _n,
+        displayName: _dn,
+        description: _ds,
+        ...rest
+      } = v;
+      config = rest;
+    }
+    testCreateMutation.mutate({ toolType, config });
   };
 
   return (
@@ -191,6 +266,21 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
         {selectedType === "mcp" && (
           <>
             <Divider>工具配置 - MCP</Divider>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginBottom: 8,
+              }}
+            >
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleTestInCreate}
+                loading={testCreateMutation.isPending}
+              >
+                测试连接
+              </Button>
+            </div>
             <Form.Item
               label="协议"
               name="protocol"
@@ -260,6 +350,67 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
           </>
         )}
 
+        {selectedType === "mcp" && createTestPreview && (
+          <Card size="small" style={{ marginTop: 12 }}>
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <span>
+                  耗时: <b>{createTestPreview.responseTime ?? 0} ms</b>
+                </span>
+                <span>
+                  可用工具数: <b>{createTestPreview.toolCount ?? 0}</b>
+                </span>
+              </div>
+              {createTestPreview.server && (
+                <Collapse size="small" destroyInactivePanel>
+                  <Collapse.Panel header="MCP Server 信息" key="server">
+                    <pre
+                      style={{
+                        background: "#f7f7f7",
+                        padding: 8,
+                        borderRadius: 6,
+                        overflow: "auto",
+                      }}
+                    >
+                      {JSON.stringify(createTestPreview.server, null, 2)}
+                    </pre>
+                  </Collapse.Panel>
+                </Collapse>
+              )}
+              {createTestPreview.tools &&
+                Array.isArray(createTestPreview.tools) &&
+                createTestPreview.tools.length > 0 && (
+                  <Collapse size="small" destroyInactivePanel>
+                    {createTestPreview.tools.map((t, idx) => (
+                      <Collapse.Panel
+                        header={`${t.name || "(unknown)"} - ${t.description || ""}`}
+                        key={String(idx)}
+                      >
+                        {t.inputSchema ? (
+                          <>
+                            <div style={{ marginBottom: 6 }}>输入参数(JSONSchema):</div>
+                            <pre
+                              style={{
+                                background: "#f7f7f7",
+                                padding: 8,
+                                borderRadius: 6,
+                                overflow: "auto",
+                              }}
+                            >
+                              {JSON.stringify(t.inputSchema, null, 2)}
+                            </pre>
+                          </>
+                        ) : (
+                          <span style={{ color: "#999" }}>无参数定义</span>
+                        )}
+                      </Collapse.Panel>
+                    ))}
+                  </Collapse>
+                )}
+            </Space>
+          </Card>
+        )}
+
         {selectedType && selectedType !== "mcp" && toolTemplate && (
           <>
             <Divider>工具配置</Divider>
@@ -311,6 +462,12 @@ const ToolsPage: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [editMcpProtocol, setEditMcpProtocol] =
     useState<string>("http_streamable");
+  const [editTestPreview, setEditTestPreview] = useState<{
+    responseTime?: number;
+    toolCount?: number;
+    server?: Record<string, any>;
+    tools?: Array<Record<string, any>>;
+  } | null>(null);
   const [form] = Form.useForm();
 
   // 获取工具列表
@@ -386,6 +543,36 @@ const ToolsPage: React.FC = () => {
     },
   });
 
+  // 编辑弹窗内测试连接（独立于卡片按钮）
+  const testInEditMutation = useMutation({
+    mutationFn: ({
+      toolType,
+      config,
+    }: {
+      toolType: string;
+      config: Record<string, unknown>;
+    }) => toolService.testTool({ toolType, config }),
+    onSuccess: (res: any) => {
+      if (res.success) {
+        message.success(res.message || "测试成功");
+        const details = res.details || {};
+        setEditTestPreview({
+          responseTime: res.responseTime,
+          toolCount: details.toolCount,
+          server: details.server,
+          tools: details.tools,
+        });
+      } else {
+        message.error(res.message || "测试失败");
+        setEditTestPreview(null);
+      }
+    },
+    onError: () => {
+      message.error("测试连接失败");
+      setEditTestPreview(null);
+    },
+  });
+
   // 删除工具
   const deleteToolMutation = useMutation({
     mutationFn: toolService.deleteTool,
@@ -442,6 +629,7 @@ const ToolsPage: React.FC = () => {
 
   const handleConfigTool = (tool: Tool) => {
     setSelectedTool(tool);
+    setEditTestPreview(null);
     // 预填表单
     const base: Record<string, any> = {
       displayName: tool.displayName,
@@ -542,7 +730,7 @@ const ToolsPage: React.FC = () => {
       const { displayName: _dn, description: _ds, ...rest } = v;
       config = rest;
     }
-    testToolMutation.mutate({ toolType: selectedTool.toolType, config });
+    testInEditMutation.mutate({ toolType: selectedTool.toolType, config });
   };
 
   const handleDeleteTool = (toolId: string) => {
@@ -598,6 +786,14 @@ const ToolsPage: React.FC = () => {
         <Descriptions.Item label="工具类型">
           <Tag>{tool.toolType}</Tag>
         </Descriptions.Item>
+        {tool.toolType === "mcp" && (
+          <Descriptions.Item label="支持能力">
+            {Array.isArray((tool.config as any)?.mcp_tools)
+              ? ((tool.config as any).mcp_tools as any[]).length
+              : 0}
+            项
+          </Descriptions.Item>
+        )}
         {tool.lastExecutedAt && (
           <Descriptions.Item label="最后使用">
             {new Date(tool.lastExecutedAt).toLocaleString("zh-CN")}
@@ -609,6 +805,59 @@ const ToolsPage: React.FC = () => {
           </Descriptions.Item>
         )}
       </Descriptions>
+
+      {/* MCP 能力预览（只读，默认折叠，不撑外部容器；展开时内部预设最大高度滚动） */}
+      {tool.toolType === "mcp" && (
+        <>
+          {(tool.config as any)?.mcp_server && (
+            <Collapse size="small" destroyInactivePanel style={{ marginTop: 8 }}>
+              <Collapse.Panel header="MCP Server 信息" key="server-info">
+                <pre
+                  style={{
+                    background: "#f7f7f7",
+                    padding: 8,
+                    borderRadius: 6,
+                    maxHeight: 220,
+                    overflow: "auto",
+                  }}
+                >
+                  {JSON.stringify((tool.config as any).mcp_server, null, 2)}
+                </pre>
+              </Collapse.Panel>
+            </Collapse>
+          )}
+          {Array.isArray((tool.config as any)?.mcp_tools) &&
+            ((tool.config as any).mcp_tools as any[]).length > 0 && (
+              <Collapse size="small" destroyInactivePanel style={{ marginTop: 8 }}>
+                {((tool.config as any).mcp_tools as any[]).map((t: any, idx: number) => (
+                  <Collapse.Panel
+                    header={`${t.name || "(unknown)"} - ${t.description || ""}`}
+                    key={`cap-${idx}`}
+                  >
+                    {t.inputSchema ? (
+                      <>
+                        <div style={{ marginBottom: 6 }}>输入参数(JSONSchema):</div>
+                        <pre
+                          style={{
+                            background: "#f7f7f7",
+                            padding: 8,
+                            borderRadius: 6,
+                            maxHeight: 220,
+                            overflow: "auto",
+                          }}
+                        >
+                          {JSON.stringify(t.inputSchema, null, 2)}
+                        </pre>
+                      </>
+                    ) : (
+                      <span style={{ color: "#999" }}>无参数定义</span>
+                    )}
+                  </Collapse.Panel>
+                ))}
+              </Collapse>
+            )}
+        </>
+      )}
 
       <Divider style={{ margin: "12px 0" }} />
 
@@ -1014,11 +1263,74 @@ const ToolsPage: React.FC = () => {
               <Button
                 icon={<ReloadOutlined />}
                 onClick={handleTestConfigInModal}
-                loading={testToolMutation.isPending}
+                loading={testInEditMutation.isPending}
               >
                 测试连接
               </Button>
             </div>
+          )}
+
+          {selectedTool && editTestPreview && (
+            <Card size="small" style={{ marginBottom: 12 }}>
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  <span>
+                    耗时: <b>{editTestPreview.responseTime ?? 0} ms</b>
+                  </span>
+                  <span>
+                    可用工具数: <b>{editTestPreview.toolCount ?? 0}</b>
+                  </span>
+                </div>
+                {editTestPreview.server && (
+                  <Collapse size="small" destroyInactivePanel>
+                    <Collapse.Panel header="MCP Server 信息" key="server">
+                      <pre
+                        style={{
+                          background: "#f7f7f7",
+                          padding: 8,
+                          borderRadius: 6,
+                          overflow: "auto",
+                        }}
+                      >
+                        {JSON.stringify(editTestPreview.server, null, 2)}
+                      </pre>
+                    </Collapse.Panel>
+                  </Collapse>
+                )}
+                {editTestPreview.tools &&
+                  Array.isArray(editTestPreview.tools) &&
+                  editTestPreview.tools.length > 0 && (
+                    <Collapse size="small" destroyInactivePanel>
+                      {editTestPreview.tools.map((t, idx) => (
+                        <Collapse.Panel
+                          header={`${t.name || "(unknown)"} - ${t.description || ""}`}
+                          key={String(idx)}
+                        >
+                          {t.inputSchema ? (
+                            <>
+                              <div style={{ marginBottom: 6 }}>
+                                输入参数(JSONSchema):
+                              </div>
+                              <pre
+                                style={{
+                                  background: "#f7f7f7",
+                                  padding: 8,
+                                  borderRadius: 6,
+                                  overflow: "auto",
+                                }}
+                              >
+                                {JSON.stringify(t.inputSchema, null, 2)}
+                              </pre>
+                            </>
+                          ) : (
+                            <span style={{ color: "#999" }}>无参数定义</span>
+                          )}
+                        </Collapse.Panel>
+                      ))}
+                    </Collapse>
+                  )}
+              </Space>
+            </Card>
           )}
 
           {selectedTool?.toolType === "mcp" ? (
