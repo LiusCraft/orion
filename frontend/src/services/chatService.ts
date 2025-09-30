@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import { DEFAULT_CONVERSATION_TITLE } from '../constants'
 import type { 
   Conversation, 
   Message, 
@@ -24,7 +25,7 @@ export const chatService = {
   // 创建新对话
   async createConversation(title?: string): Promise<Conversation> {
     const response = await apiClient.post<ApiResponse<Conversation>>('/conversations', {
-      title: title || '新对话'
+      title: title || DEFAULT_CONVERSATION_TITLE
     })
     if (!response.data) {
       throw new Error('创建对话失败：无效的响应数据')

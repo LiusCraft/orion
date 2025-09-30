@@ -1,6 +1,7 @@
 package handlers
 
 import (
+    "context"
     "encoding/json"
     "fmt"
     "net/http"
@@ -15,6 +16,7 @@ import (
     "github.com/cdnagent/cdnagent/internal/services/ai"
     pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
     "github.com/cdnagent/cdnagent/internal/config"
+    "github.com/cdnagent/cdnagent/internal/constants"
 )
 
 type ChatHandler struct {
@@ -609,13 +611,13 @@ STREAM_LOOP:
     })
 
 	// 更新对话统计
-	h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
-		Updates(map[string]interface{}{
-			"total_messages":  gorm.Expr("total_messages + 1"),
-			"last_message_at": time.Now(),
-		})
+    h.db.Model(&models.Conversation{}).Where("id = ?", message.ConversationID).
+        Updates(map[string]interface{}{
+            "total_messages":  gorm.Expr("total_messages + 1"),
+            "last_message_at": time.Now(),
+        })
 
-	// 发送消息完成事件
+    // 发送消息完成事件
     h.writeSSEEvent(w, flusher, SSEEvent{
         Type: "message_complete",
         Data: map[string]interface{}{
@@ -627,9 +629,38 @@ STREAM_LOOP:
         },
     })
 
-	// 发送结束标记
-	fmt.Fprintf(w, "event: done\ndata: {}\n\n")
-	flusher.Flush()
+    // 发送完成事件后，再尝试生成并更新对话标题，避免阻塞完成信号
+    var convForTitle models.Conversation
+    if err := h.db.Where("id = ?", message.ConversationID).First(&convForTitle).Error; err == nil {
+        if convForTitle.Title == "" || convForTitle.Title == constants.DefaultConversationTitle {
+            var userMsg models.Message
+            if message.ParentMessageID != nil {
+                _ = h.db.Where("id = ?", *message.ParentMessageID).First(&userMsg).Error
+            }
+            titleCtx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+            defer cancel()
+            if newTitle, err := h.aiService.GenerateTitle(titleCtx, userMsg.Content, fullContent); err == nil && newTitle != "" {
+                h.db.Model(&models.Conversation{}).
+                    Where("id = ? AND (title = '' OR title = ?)", message.ConversationID, constants.DefaultConversationTitle).
+                    Updates(map[string]interface{}{
+                        "title":      newTitle,
+                        "updated_at": time.Now(),
+                    })
+
+                h.writeSSEEvent(w, flusher, SSEEvent{
+                    Type: "conversation_title_updated",
+                    Data: map[string]interface{}{
+                        "conversationId": message.ConversationID,
+                        "title":          newTitle,
+                    },
+                })
+            }
+        }
+    }
+
+    // 发送结束标记
+    fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+    flusher.Flush()
 }
 
 func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, userInput string) {
