@@ -197,6 +197,8 @@ const MainLayout: React.FC = () => {
 
         <Content
           style={{
+            padding: "10px",
+            backgroundColor: "#fff",
             overflow: "auto",
           }}
         >

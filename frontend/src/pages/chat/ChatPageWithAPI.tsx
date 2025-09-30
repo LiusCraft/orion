@@ -411,36 +411,50 @@ const ChatPage: React.FC = () => {
       setPlanningNotes((prev) => [...prev, "加载工具中…"]);
     });
 
-    eventSource.addEventListener("tools_loading_finished", (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const n = eventData?.data?.toolCount ?? 0;
-        setPlanningNotes((prev) => [...prev, `工具加载完成：${n} 个可用`]);
-      } catch {}
-    });
+    eventSource.addEventListener(
+      "tools_loading_finished",
+      (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const n = eventData?.data?.toolCount ?? 0;
+          setPlanningNotes((prev) => [...prev, `工具加载完成：${n} 个可用`]);
+        } catch {}
+      },
+    );
 
-    eventSource.addEventListener("model_step_started", (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const iter = eventData?.data?.iteration ?? 0;
-        setPlanningNotes((prev) => [...prev, `第 ${iter} 轮规划…`]);
-      } catch {}
-    });
+    eventSource.addEventListener(
+      "model_step_started",
+      (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const iter = eventData?.data?.iteration ?? 0;
+          setPlanningNotes((prev) => [...prev, `第 ${iter} 轮规划…`]);
+        } catch {}
+      },
+    );
 
-    eventSource.addEventListener("model_step_finished", (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const iter = eventData?.data?.iteration ?? 0;
-        const has = eventData?.data?.hasToolCalls ? "产生工具调用" : "未产生工具调用";
-        setPlanningNotes((prev) => [...prev, `第 ${iter} 轮完成：${has}`]);
-      } catch {}
-    });
+    eventSource.addEventListener(
+      "model_step_finished",
+      (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const iter = eventData?.data?.iteration ?? 0;
+          const has = eventData?.data?.hasToolCalls
+            ? "产生工具调用"
+            : "未产生工具调用";
+          setPlanningNotes((prev) => [...prev, `第 ${iter} 轮完成：${has}`]);
+        } catch {}
+      },
+    );
 
     eventSource.addEventListener("planning_finished", (event: MessageEvent) => {
       try {
         const eventData = JSON.parse(event.data);
         const skipped = !!eventData?.data?.skipped;
-        setPlanningNotes((prev) => [...prev, skipped ? "已跳过规划" : "规划完成"]);
+        setPlanningNotes((prev) => [
+          ...prev,
+          skipped ? "已跳过规划" : "规划完成",
+        ]);
       } catch {}
       setPlanningActive(false);
     });
@@ -892,7 +906,7 @@ const ChatPage: React.FC = () => {
   return (
     <div
       style={{
-        height: "calc(100vh - 65px)",
+        height: "calc(100vh - 85px)",
         display: "flex",
         gap: "16px",
         minHeight: 0,
@@ -1218,22 +1232,26 @@ const ChatPage: React.FC = () => {
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "flex-start",
-                          maxWidth: "70%",
-                        }}
-                      >
+                            maxWidth: "70%",
+                          }}
+                        >
                           {/* 规划阶段提示（新） */}
                           {planningActive && (
-                            <div style={{
-                              background: "#fffbe6",
-                              border: "1px solid #ffe58f",
-                              color: "#614700",
-                              padding: "8px 12px",
-                              borderRadius: 8,
-                              marginBottom: 8,
-                              width: "100%",
-                              fontSize: 12,
-                            }}>
-                              <div style={{ marginBottom: 4 }}>正在分析与选择工具…</div>
+                            <div
+                              style={{
+                                background: "#fffbe6",
+                                border: "1px solid #ffe58f",
+                                color: "#614700",
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                marginBottom: 8,
+                                width: "100%",
+                                fontSize: 12,
+                              }}
+                            >
+                              <div style={{ marginBottom: 4 }}>
+                                正在分析与选择工具…
+                              </div>
                               {planningNotes.map((n, i) => (
                                 <div key={i}>• {n}</div>
                               ))}
@@ -1257,14 +1275,24 @@ const ChatPage: React.FC = () => {
                                       header={
                                         <Space>
                                           <ToolOutlined />
-                                          <Text strong>{e.toolName || "工具"}</Text>
-                                          <Tag color={statusColor}>{e.status}</Tag>
-                                          <Text type="secondary">{durationText}</Text>
+                                          <Text strong>
+                                            {e.toolName || "工具"}
+                                          </Text>
+                                          <Tag color={statusColor}>
+                                            {e.status}
+                                          </Tag>
+                                          <Text type="secondary">
+                                            {durationText}
+                                          </Text>
                                         </Space>
                                       }
                                     >
-                                      <div style={{ fontSize: 12, color: "#666" }}>
-                                        <div style={{ marginBottom: 6 }}>输入参数:</div>
+                                      <div
+                                        style={{ fontSize: 12, color: "#666" }}
+                                      >
+                                        <div style={{ marginBottom: 6 }}>
+                                          输入参数:
+                                        </div>
                                         <pre
                                           style={{
                                             background: "#f7f7f7",
@@ -1288,7 +1316,12 @@ const ChatPage: React.FC = () => {
                                             }
                                           })()}
                                         </pre>
-                                        <div style={{ marginTop: 8, marginBottom: 6 }}>
+                                        <div
+                                          style={{
+                                            marginTop: 8,
+                                            marginBottom: 6,
+                                          }}
+                                        >
                                           输出结果:
                                         </div>
                                         <pre
@@ -1300,26 +1333,44 @@ const ChatPage: React.FC = () => {
                                             maxHeight: 220,
                                           }}
                                         >
-                                          {e.status === "running" && !e.resultPreview
+                                          {e.status === "running" &&
+                                          !e.resultPreview
                                             ? "执行中..."
                                             : (() => {
                                                 try {
                                                   // 尝试把 resultPreview 解析为 JSON 优先渲染
                                                   const parsed = JSON.parse(
-                                                    typeof e.resultPreview === "string"
+                                                    typeof e.resultPreview ===
+                                                      "string"
                                                       ? e.resultPreview
-                                                      : JSON.stringify(e.resultPreview ?? {}),
+                                                      : JSON.stringify(
+                                                          e.resultPreview ?? {},
+                                                        ),
                                                   );
-                                                  return JSON.stringify(parsed, null, 2);
+                                                  return JSON.stringify(
+                                                    parsed,
+                                                    null,
+                                                    2,
+                                                  );
                                                 } catch {
-                                                  return typeof e.resultPreview === "string"
+                                                  return typeof e.resultPreview ===
+                                                    "string"
                                                     ? e.resultPreview
-                                                    : JSON.stringify(e.resultPreview ?? {}, null, 2);
+                                                    : JSON.stringify(
+                                                        e.resultPreview ?? {},
+                                                        null,
+                                                        2,
+                                                      );
                                                 }
                                               })()}
                                         </pre>
                                         {e.status === "failed" && e.error && (
-                                          <div style={{ color: "#ff4d4f", marginTop: 6 }}>
+                                          <div
+                                            style={{
+                                              color: "#ff4d4f",
+                                              marginTop: 6,
+                                            }}
+                                          >
                                             错误: {e.error}
                                           </div>
                                         )}
