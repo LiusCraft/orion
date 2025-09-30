@@ -80,10 +80,14 @@ type RAGConfig struct {
 }
 
 type AgentConfig struct {
-	MaxIterations   int  `mapstructure:"max_iterations"`
-	ThinkingEnabled bool `mapstructure:"thinking_enabled"`
-	MemoryEnabled   bool `mapstructure:"memory_enabled"`
-	MemoryLength    int  `mapstructure:"memory_length"`
+    MaxIterations   int  `mapstructure:"max_iterations"`
+    ThinkingEnabled bool `mapstructure:"thinking_enabled"`
+    MemoryEnabled   bool `mapstructure:"memory_enabled"`
+    MemoryLength    int  `mapstructure:"memory_length"`
+    // 规划阶段：工具调用最多轮数（非流式），默认1轮即可
+    ToolPlanMaxIter int  `mapstructure:"tool_plan_max_iter"`
+    // 是否根据用户意图判断再启用工具规划（简单关键词启发式）
+    ToolIntentEnabled bool `mapstructure:"tool_intent_enabled"`
 }
 
 type EmbeddingConfig struct {
@@ -232,10 +236,13 @@ func setDefaults() {
 	viper.SetDefault("ai.rag.hybrid_enabled", true)
 
 	// Agent defaults
-	viper.SetDefault("ai.agent.max_iterations", 10)
-	viper.SetDefault("ai.agent.thinking_enabled", true)
-	viper.SetDefault("ai.agent.memory_enabled", true)
-	viper.SetDefault("ai.agent.memory_length", 50)
+    viper.SetDefault("ai.agent.max_iterations", 10)
+    viper.SetDefault("ai.agent.thinking_enabled", true)
+    viper.SetDefault("ai.agent.memory_enabled", true)
+    viper.SetDefault("ai.agent.memory_length", 50)
+    // 工具规划相关默认
+    viper.SetDefault("ai.agent.tool_plan_max_iter", 1)
+    viper.SetDefault("ai.agent.tool_intent_enabled", true)
 
 	// Embedding defaults
 	viper.SetDefault("ai.embedding.provider", "openai")

@@ -47,7 +47,9 @@
       "max_iterations": 10,
       "thinking_enabled": true,
       "memory_enabled": true,
-      "memory_length": 50
+      "memory_length": 50,
+      "tool_plan_max_iter": 1,
+      "tool_intent_enabled": true
     },
     "embedding": {
       "provider": "openai",
