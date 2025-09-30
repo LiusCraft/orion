@@ -118,15 +118,25 @@ func (h *ToolHandler) CreateTool(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 
-	// 验证工具配置
-	if err := h.validateToolConfig(req.ToolType, req.Config); err != nil {
-		c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
-			40032,
-			"工具配置错误",
-			err.Error(),
-		))
-		return
-	}
+    // 验证工具配置
+    if err := h.validateToolConfig(req.ToolType, req.Config); err != nil {
+        c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
+            40032,
+            "工具配置错误",
+            err.Error(),
+        ))
+        return
+    }
+
+    // 对于 MCP 工具：连接并抓取服务端元信息与工具清单，存入 Config
+    if req.ToolType == "mcp" {
+        if serverInfo, toolsMeta, err := toolsSvc.FetchMCPServerInfo(c.Request.Context(), req.Config); err == nil {
+            if req.Config == nil { req.Config = map[string]interface{}{} }
+            req.Config["mcp_server"] = serverInfo
+            req.Config["mcp_tools"] = toolsMeta
+        }
+        // 若失败不阻断创建，仅不写入这些信息
+    }
 
 	userUUID := userID.(uuid.UUID)
     tool := models.Tool{
@@ -301,6 +311,13 @@ func (h *ToolHandler) UpdateTool(c *gin.Context) {
                 err.Error(),
             ))
             return
+        }
+        // 对于 MCP 工具，刷新服务端信息与工具清单
+        if tool.ToolType == "mcp" {
+            if serverInfo, toolsMeta, err := toolsSvc.FetchMCPServerInfo(c.Request.Context(), req.Config); err == nil {
+                req.Config["mcp_server"] = serverInfo
+                req.Config["mcp_tools"] = toolsMeta
+            }
         }
         updates["config"] = models.JSONMap(req.Config)
     }
@@ -867,12 +884,21 @@ func (h *ToolHandler) TestToolConnection(c *gin.Context) {
         }))
         return
     }
+    // 附带更多详情：server信息与tools清单
+    serverInfo := map[string]interface{}{}
+    toolsMeta := []map[string]interface{}{}
+    if s, t, e := toolsSvc.FetchMCPServerInfo(c.Request.Context(), body.Config); e == nil {
+        serverInfo = s
+        toolsMeta = t
+    }
     c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
         "success":      true,
         "message":      "连接成功",
         "responseTime": dur,
         "details": map[string]interface{}{
             "toolCount": count,
+            "server":    serverInfo,
+            "tools":     toolsMeta,
         },
     }))
 }

@@ -4,6 +4,7 @@ import (
     "context"
     "errors"
     "fmt"
+    "encoding/json"
     "os/exec"
     "strings"
     "time"
@@ -102,6 +103,53 @@ func BuildMCPTools(ctx context.Context, cfg map[string]interface{}, prefixName s
     }
 
     return tools, closeFn, nil
+}
+
+// FetchMCPServerInfo 连接 MCP Server 并返回 server 初始化信息与工具元数据列表
+// 返回：serverInfo 为任意结构map（来自 InitializeResult），toolsMeta 为每个工具的 {name, description, inputSchema}
+func FetchMCPServerInfo(ctx context.Context, cfg map[string]interface{}) (map[string]interface{}, []map[string]interface{}, error) {
+    cli, closeFn, err := buildMCPClient(ctx, cfg)
+    if err != nil {
+        return nil, nil, err
+    }
+    defer func() { _ = closeFn() }()
+
+    initReq := mcp.InitializeRequest{}
+    initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+    initReq.Params.ClientInfo = mcp.Implementation{Name: "cdnagent", Version: "1.0.0"}
+    initRes, err := cli.Initialize(ctx, initReq)
+    if err != nil {
+        return nil, nil, fmt.Errorf("mcp initialize failed: %w", err)
+    }
+
+    // convert initRes to map
+    serverInfo := map[string]interface{}{}
+    if b, e := json.Marshal(initRes); e == nil {
+        _ = json.Unmarshal(b, &serverInfo)
+    }
+
+    listRes, err := cli.ListTools(ctx, mcp.ListToolsRequest{})
+    if err != nil {
+        return serverInfo, nil, fmt.Errorf("mcp list tools failed: %w", err)
+    }
+
+    toolsMeta := make([]map[string]interface{}, 0, len(listRes.Tools))
+    for _, t := range listRes.Tools {
+        m := map[string]interface{}{
+            "name":        t.Name,
+            "description": t.Description,
+        }
+        // input schema to map
+        if b, e := json.Marshal(t.InputSchema); e == nil {
+            var is map[string]interface{}
+            if err := json.Unmarshal(b, &is); err == nil {
+                m["inputSchema"] = is
+            }
+        }
+        toolsMeta = append(toolsMeta, m)
+    }
+
+    return serverInfo, toolsMeta, nil
 }
 
 // buildMCPClient 根据配置构造 MCP 客户端
