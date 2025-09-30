@@ -32,7 +32,11 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { chatService } from "../../services/chatService";
 import { DEFAULT_CONVERSATION_TITLE } from "../../constants";
-import type { Message as MessageType, Conversation, PaginationResponse } from "../../types";
+import type {
+  Message as MessageType,
+  Conversation,
+  PaginationResponse,
+} from "../../types";
 import MarkdownRenderer from "../../components/common/MarkdownRenderer";
 
 const { TextArea } = Input;
@@ -59,10 +63,16 @@ const ChatPage: React.FC = () => {
   const [sseConnection, setSseConnection] = useState<EventSource | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null);
+  const [streamingConversationId, setStreamingConversationId] = useState<
+    string | null
+  >(null);
   const [pendingUserMessage, setPendingUserMessage] = useState<string>("");
-  const [pendingConversationId, setPendingConversationId] = useState<string | null>(null);
-  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
+  const [pendingConversationId, setPendingConversationId] = useState<
+    string | null
+  >(null);
+  const [loadingConversationId, setLoadingConversationId] = useState<
+    string | null
+  >(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
 
@@ -89,7 +99,8 @@ const ChatPage: React.FC = () => {
     enabled: !!currentConversationId,
   });
 
-  const currentConvObj: Conversation | undefined = currentConversation?.conversation;
+  const currentConvObj: Conversation | undefined =
+    currentConversation?.conversation;
 
   // 创建新对话
   const createConversationMutation = useMutation({
@@ -179,7 +190,10 @@ const ChatPage: React.FC = () => {
     }
 
     // 创建新的SSE连接
-    const eventSource = chatService.createChatStream(conversationId, userMessageId);
+    const eventSource = chatService.createChatStream(
+      conversationId,
+      userMessageId,
+    );
     setSseConnection(eventSource);
 
     // 监听特定类型的事件
@@ -189,6 +203,8 @@ const ChatPage: React.FC = () => {
         console.log("AI开始响应:", eventData.data);
         // 清空本次工具事件
         setToolEventCards([]);
+        // 在消息开始时滚动到底部，显示占位气泡
+        scrollToBottom();
       } catch (error) {
         console.error("解析message_start事件失败:", error);
       }
@@ -211,7 +227,9 @@ const ChatPage: React.FC = () => {
         console.log("AI响应完成:", eventData.data);
         setIsStreaming(false);
         setStreamingMessage("");
-        setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+        setStreamingConversationId((prev) =>
+          prev === conversationId ? null : prev,
+        );
         // 刷新消息列表以显示完整的AI回复
         queryClient.invalidateQueries({
           queryKey: ["conversation", conversationId],
@@ -226,19 +244,24 @@ const ChatPage: React.FC = () => {
     });
 
     // 可选：监听服务端发送的标题更新事件（无需等待刷新）
-    eventSource.addEventListener("conversation_title_updated", (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const convId: string | undefined = eventData?.data?.conversationId;
-        // 刷新对话列表与对应会话详情，确保右侧标题同步更新
-        queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        if (convId) {
-          queryClient.invalidateQueries({ queryKey: ["conversation", convId] });
+    eventSource.addEventListener(
+      "conversation_title_updated",
+      (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const convId: string | undefined = eventData?.data?.conversationId;
+          // 刷新对话列表与对应会话详情，确保右侧标题同步更新
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          if (convId) {
+            queryClient.invalidateQueries({
+              queryKey: ["conversation", convId],
+            });
+          }
+        } catch (error) {
+          console.error("解析conversation_title_updated事件失败:", error);
         }
-      } catch (error) {
-        console.error("解析conversation_title_updated事件失败:", error);
-      }
-    });
+      },
+    );
 
     // 模型侧错误事件（自定义名，避免与连接错误冲突）
     eventSource.addEventListener("ai_error", (event: MessageEvent) => {
@@ -247,7 +270,9 @@ const ChatPage: React.FC = () => {
         console.error("AI响应错误:", eventData.data);
         setIsStreaming(false);
         setStreamingMessage("");
-        setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+        setStreamingConversationId((prev) =>
+          prev === conversationId ? null : prev,
+        );
         message.error(`AI响应错误: ${eventData.data.error}`);
         // 关闭连接并刷新消息，展示已保存的部分内容
         eventSource.close();
@@ -267,7 +292,9 @@ const ChatPage: React.FC = () => {
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
-      setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+      setStreamingConversationId((prev) =>
+        prev === conversationId ? null : prev,
+      );
       // 刷新消息以获取已持久化的部分内容
       queryClient.invalidateQueries({
         queryKey: ["conversation", conversationId],
@@ -280,7 +307,9 @@ const ChatPage: React.FC = () => {
       setStreamingMessage("");
       eventSource.close();
       setSseConnection(null);
-      setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+      setStreamingConversationId((prev) =>
+        prev === conversationId ? null : prev,
+      );
     });
 
     // 工具调用开始
@@ -292,7 +321,10 @@ const ChatPage: React.FC = () => {
           ...prev,
           {
             toolName: data.toolName,
-            args: data.args,
+            args:
+              typeof data.args === "string"
+                ? data.args
+                : JSON.stringify(data.args ?? {}),
             status: "running",
             startedAt: data.timestamp,
           },
@@ -303,39 +335,52 @@ const ChatPage: React.FC = () => {
     });
 
     // 工具调用结束
-    eventSource.addEventListener("tool_call_finished", (event: MessageEvent) => {
-      try {
-        const eventData = JSON.parse(event.data);
-        const data = eventData.data || {};
-        setToolEventCards((prev) => {
-          const idx = [...prev].reverse().findIndex((t) => t.toolName === data.toolName && t.status === "running");
-          if (idx === -1) {
-            return [
-              ...prev,
-              {
-                toolName: data.toolName,
-                status: data.status,
-                durationMs: data.durationMs,
-                resultPreview: data.resultPreview || data.result,
-                error: data.error,
-              },
-            ];
-          }
-          const realIdx = prev.length - 1 - idx;
-          const copy = prev.slice();
-          copy[realIdx] = {
-            ...copy[realIdx],
-            status: data.status,
-            durationMs: data.durationMs,
-            resultPreview: data.resultPreview || data.result,
-            error: data.error,
-          };
-          return copy;
-        });
-      } catch (err) {
-        console.error("解析tool_call_finished事件失败:", err);
-      }
-    });
+    eventSource.addEventListener(
+      "tool_call_finished",
+      (event: MessageEvent) => {
+        try {
+          const eventData = JSON.parse(event.data);
+          const data = eventData.data || {};
+          setToolEventCards((prev) => {
+            const idx = [...prev]
+              .reverse()
+              .findIndex(
+                (t) => t.toolName === data.toolName && t.status === "running",
+              );
+            if (idx === -1) {
+              return [
+                ...prev,
+                {
+                  toolName: data.toolName,
+                  status: data.status,
+                  durationMs: data.durationMs,
+                  resultPreview:
+                    typeof (data.resultPreview || data.result) === "string"
+                      ? data.resultPreview || data.result
+                      : JSON.stringify(data.resultPreview || data.result || {}),
+                  error: data.error,
+                },
+              ];
+            }
+            const realIdx = prev.length - 1 - idx;
+            const copy = prev.slice();
+            copy[realIdx] = {
+              ...copy[realIdx],
+              status: data.status,
+              durationMs: data.durationMs,
+              resultPreview:
+                typeof (data.resultPreview || data.result) === "string"
+                  ? data.resultPreview || data.result
+                  : JSON.stringify(data.resultPreview || data.result || {}),
+              error: data.error,
+            };
+            return copy;
+          });
+        } catch (err) {
+          console.error("解析tool_call_finished事件失败:", err);
+        }
+      },
+    );
   };
 
   useEffect(() => {
@@ -348,7 +393,13 @@ const ChatPage: React.FC = () => {
     ) {
       smartScroll();
     }
-  }, [streamingMessage, isStreaming, smartScroll, streamingConversationId, currentConversationId]);
+  }, [
+    streamingMessage,
+    isStreaming,
+    smartScroll,
+    streamingConversationId,
+    currentConversationId,
+  ]);
 
   // 切换会话时退出编辑态
   useEffect(() => {
@@ -422,7 +473,10 @@ const ChatPage: React.FC = () => {
       "conversations",
     ]);
     const existing = latest?.data?.find(
-      (c) => (c.title === DEFAULT_CONVERSATION_TITLE || !c.title) && c.status === "active" && c.totalMessages === 0
+      (c) =>
+        (c.title === DEFAULT_CONVERSATION_TITLE || !c.title) &&
+        c.status === "active" &&
+        c.totalMessages === 0,
     );
     if (existing) {
       setCurrentConversationId(existing.id);
@@ -479,7 +533,9 @@ const ChatPage: React.FC = () => {
         message.success("标题已更新");
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (conv.id === currentConversationId) {
-          queryClient.invalidateQueries({ queryKey: ["conversation", conv.id] });
+          queryClient.invalidateQueries({
+            queryKey: ["conversation", conv.id],
+          });
         }
       },
     });
@@ -511,10 +567,15 @@ const ChatPage: React.FC = () => {
       return;
     }
     try {
-      await chatService.updateConversationTitle(currentConversationId, newTitle);
+      await chatService.updateConversationTitle(
+        currentConversationId,
+        newTitle,
+      );
       message.success("标题已更新");
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["conversation", currentConversationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["conversation", currentConversationId],
+      });
     } catch (e) {
       message.error("更新标题失败");
     } finally {
@@ -534,7 +595,9 @@ const ChatPage: React.FC = () => {
     return Math.max(0, end - start);
   };
 
-  const [openToolPanels, setOpenToolPanels] = useState<Record<string, string | undefined>>({});
+  const [openToolPanels, setOpenToolPanels] = useState<
+    Record<string, string | undefined>
+  >({});
 
   const renderMessage = (message: MessageType) => {
     const isUser = message.senderType === "user";
@@ -575,24 +638,33 @@ const ChatPage: React.FC = () => {
                 maxWidth: "fit-content",
                 minWidth: "20px",
                 wordBreak: "break-word",
+                overflowWrap: "anywhere",
               }}
-          >
-            {isUser ? (
-              <span style={{ whiteSpace: "pre-wrap" }}>
-                {message.content}
-              </span>
-            ) : (
-              <MarkdownRenderer content={message.content} />
-            )}
-          </div>
-
-          {!isUser && message.content && (message.status === "completed" || message.status === "failed" || message.status === "partial") ? (
-            <div style={{ fontSize: "12px", color: "#999", margin: "2px 0 0 0" }}>
-              {`耗时: ${Math.round(computeDurationMs(message) / 1000)}s`}
+            >
+              {isUser ? (
+                <span style={{ whiteSpace: "pre-wrap" }}>
+                  {message.content}
+                </span>
+              ) : (
+                <MarkdownRenderer content={message.content} />
+              )}
             </div>
-          ) : null}
 
-            {!isUser && (message.status === "failed" || message.status === "partial") && message.content ? (
+            {!isUser &&
+            message.content &&
+            (message.status === "completed" ||
+              message.status === "failed" ||
+              message.status === "partial") ? (
+              <div
+                style={{ fontSize: "12px", color: "#999", margin: "2px 0 0 0" }}
+              >
+                {`耗时: ${Math.round(computeDurationMs(message) / 1000)}s`}
+              </div>
+            ) : null}
+
+            {!isUser &&
+            (message.status === "failed" || message.status === "partial") &&
+            message.content ? (
               <div
                 style={{
                   fontSize: "12px",
@@ -605,51 +677,92 @@ const ChatPage: React.FC = () => {
             ) : null}
 
             {/* 工具调用结果（历史）：从 metadata.tools 渲染，可展开查看输入/输出 */}
-            {message.metadata?.tools && Array.isArray(message.metadata.tools) ? (
+            {message.metadata?.tools &&
+            Array.isArray(message.metadata.tools) ? (
               <div style={{ marginTop: 8, width: "100%" }}>
                 <Collapse
                   size="small"
-                  activeKey={openToolPanels[message.id] ? [openToolPanels[message.id] as string] : undefined}
+                  activeKey={
+                    openToolPanels[message.id]
+                      ? [openToolPanels[message.id] as string]
+                      : undefined
+                  }
                   destroyInactivePanel
                   onChange={(keys) => {
-                    const arr = Array.isArray(keys) ? (keys as string[]) : [keys as string];
+                    const arr = Array.isArray(keys)
+                      ? (keys as string[])
+                      : [keys as string];
                     const k = arr.length > 0 ? arr[0] : undefined;
                     setOpenToolPanels((prev) => ({ ...prev, [message.id]: k }));
                   }}
                 >
-                  {(message.metadata.tools as any[]).map((t: any, idx: number) => {
-                    const panelKey = `${t.toolId || ""}:${t.createdAt || idx}`;
-                    return (
-                    <Collapse.Panel
-                      key={panelKey}
-                      header={
-                        <Space>
-                          <ToolOutlined />
-                          <Text strong>{t.displayName || t.name}</Text>
-                          {t.toolType && (
-                            <Tag color="blue" style={{ textTransform: "uppercase" }}>
-                              {t.toolType}
-                            </Tag>
-                          )}
-                          <Tag color={t.status === "success" ? "green" : t.status === "failed" ? "red" : "orange"}>
-                            {t.status}
-                          </Tag>
-                          <Text type="secondary">{(t.executionTimeMs ?? 0) + " ms"}</Text>
-                        </Space>
-                      }
-                    >
-                      <div style={{ fontSize: 12, color: "#666" }}>
-                        <div style={{ marginBottom: 6 }}>输入参数:</div>
-                        <pre style={{ background: "#f7f7f7", padding: 8, borderRadius: 6, overflow: "auto" }}>
-{JSON.stringify(t.inputParams || {}, null, 2)}
-                        </pre>
-                        <div style={{ marginTop: 8, marginBottom: 6 }}>输出结果:</div>
-                        <pre style={{ background: "#f7f7f7", padding: 8, borderRadius: 6, overflow: "auto" }}>
-{JSON.stringify(t.outputResult || {}, null, 2)}
-                        </pre>
-                      </div>
-                    </Collapse.Panel>
-                  );})}
+                  {(message.metadata.tools as any[]).map(
+                    (t: any, idx: number) => {
+                      const panelKey = `${t.toolId || ""}:${t.createdAt || idx}`;
+                      return (
+                        <Collapse.Panel
+                          key={panelKey}
+                          header={
+                            <Space>
+                              <ToolOutlined />
+                              <Text strong>{t.displayName || t.name}</Text>
+                              {t.toolType && (
+                                <Tag
+                                  color="blue"
+                                  style={{ textTransform: "uppercase" }}
+                                >
+                                  {t.toolType}
+                                </Tag>
+                              )}
+                              <Tag
+                                color={
+                                  t.status === "success"
+                                    ? "green"
+                                    : t.status === "failed"
+                                      ? "red"
+                                      : "orange"
+                                }
+                              >
+                                {t.status}
+                              </Tag>
+                              <Text type="secondary">
+                                {(t.executionTimeMs ?? 0) + " ms"}
+                              </Text>
+                            </Space>
+                          }
+                        >
+                          <div style={{ fontSize: 12, color: "#666" }}>
+                            <div style={{ marginBottom: 6 }}>输入参数:</div>
+                            <pre
+                              style={{
+                                background: "#f7f7f7",
+                                padding: 8,
+                                borderRadius: 6,
+                                overflow: "auto",
+                                maxHeight: 220,
+                              }}
+                            >
+                              {JSON.stringify(t.inputParams || {}, null, 2)}
+                            </pre>
+                            <div style={{ marginTop: 8, marginBottom: 6 }}>
+                              输出结果:
+                            </div>
+                            <pre
+                              style={{
+                                background: "#f7f7f7",
+                                padding: 8,
+                                borderRadius: 6,
+                                overflow: "auto",
+                                maxHeight: 220,
+                              }}
+                            >
+                              {JSON.stringify(t.outputResult || {}, null, 2)}
+                            </pre>
+                          </div>
+                        </Collapse.Panel>
+                      );
+                    },
+                  )}
                 </Collapse>
               </div>
             ) : null}
@@ -715,10 +828,25 @@ const ChatPage: React.FC = () => {
 
   return (
     <div
-      style={{ height: "calc(100vh - 112px)", display: "flex", gap: "16px" }}
+      style={{
+        height: "calc(100vh - 65px)",
+        display: "flex",
+        gap: "16px",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
     >
       {/* 对话历史侧栏 */}
-      <div style={{ width: "280px", flexShrink: 0 }}>
+      <div
+        style={{
+          width: "280px",
+          flexShrink: 0,
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
         <Card
           title="对话历史"
           extra={
@@ -732,10 +860,17 @@ const ChatPage: React.FC = () => {
               {DEFAULT_CONVERSATION_TITLE}
             </Button>
           }
-          style={{ height: "100%" }}
+          variant="outlined"
+          style={{
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
           bodyStyle={{
             padding: "12px 0",
-            height: "calc(100% - 57px)",
+            flex: 1,
+            minHeight: 0,
             overflow: "auto",
           }}
         >
@@ -780,18 +915,28 @@ const ChatPage: React.FC = () => {
                   ]}
                 >
                   <List.Item.Meta
-                    title={<Space size={6}><Text ellipsis>{conv.title}</Text>{conv.id === streamingConversationId && (<Badge status="processing" text="生成中" />)}</Space>}
+                    title={
+                      <Space size={6}>
+                        <Text ellipsis>{conv.title}</Text>
+                        {conv.id === streamingConversationId && (
+                          <Badge status="processing" text="生成中" />
+                        )}
+                      </Space>
+                    }
                     description={
                       <Text type="secondary" style={{ fontSize: "12px" }}>
                         {conv.lastMessageAt
-                          ? new Date(conv.lastMessageAt).toLocaleString("zh-CN", {
-                              hour12: false,
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? new Date(conv.lastMessageAt).toLocaleString(
+                              "zh-CN",
+                              {
+                                hour12: false,
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )
                           : ""}
                       </Text>
                     }
@@ -804,7 +949,14 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 主对话区域 */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
         <Card
           title={
             <Space>
@@ -831,7 +983,7 @@ const ChatPage: React.FC = () => {
                     onDoubleClick={beginEditTitle}
                     style={{ userSelect: "none" }}
                   >
-                  {currentConvObj?.title || DEFAULT_CONVERSATION_TITLE}
+                    {currentConvObj?.title || DEFAULT_CONVERSATION_TITLE}
                   </span>
                 </Tooltip>
               )}
@@ -850,12 +1002,19 @@ const ChatPage: React.FC = () => {
               )}
             </Space>
           }
-          style={{ height: "100%" }}
-          bodyStyle={{
-            padding: 0,
-            height: "calc(100% - 57px)",
+          style={{
+            height: "100%",
             display: "flex",
             flexDirection: "column",
+            minHeight: 0,
+          }}
+          bodyStyle={{
+            padding: 0,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
           {/* 消息列表 */}
@@ -864,6 +1023,7 @@ const ChatPage: React.FC = () => {
             style={{
               flex: 1,
               overflow: "auto",
+              height: "100%",
               padding: "16px 24px",
               backgroundColor: "#fafafa",
             }}
@@ -924,171 +1084,243 @@ const ChatPage: React.FC = () => {
                 {messages.map(renderMessage)}
 
                 {/* 显示待发送的用户消息 */}
-                {pendingUserMessage && pendingConversationId === currentConversationId && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "12px",
-                        flexDirection: "row-reverse",
-                      }}
-                    >
-                      <Avatar
-                        size={32}
-                        icon={<UserOutlined />}
-                        style={{
-                          backgroundColor: "#1890ff",
-                          flexShrink: 0,
-                        }}
-                      />
+                {pendingUserMessage &&
+                  pendingConversationId === currentConversationId && (
+                    <div style={{ marginBottom: "24px" }}>
                       <div
                         style={{
                           display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-end",
-                          maxWidth: "70%",
+                          gap: "12px",
+                          flexDirection: "row-reverse",
                         }}
                       >
+                        <Avatar
+                          size={32}
+                          icon={<UserOutlined />}
+                          style={{
+                            backgroundColor: "#1890ff",
+                            flexShrink: 0,
+                          }}
+                        />
                         <div
                           style={{
-                            background: "#1890ff",
-                            color: "#fff",
-                            padding: "12px 16px",
-                            borderRadius: "12px",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                            marginBottom: "4px",
-                            whiteSpace: "pre-wrap",
-                            maxWidth: "fit-content",
-                            minWidth: "20px",
-                            wordBreak: "break-word",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            maxWidth: "70%",
                           }}
                         >
-                          {pendingUserMessage}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#999",
-                            marginTop: "4px",
-                          }}
-                        >
-                          {formatTime(new Date().toISOString())}
+                          <div
+                            style={{
+                              background: "#1890ff",
+                              color: "#fff",
+                              padding: "12px 16px",
+                              borderRadius: "12px",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                              marginBottom: "4px",
+                              whiteSpace: "pre-wrap",
+                              maxWidth: "fit-content",
+                              minWidth: "20px",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {pendingUserMessage}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#999",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {formatTime(new Date().toISOString())}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 显示流式响应中的AI消息 */}
-                {isStreaming && streamingMessage && streamingConversationId === currentConversationId && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <div style={{ display: "flex", gap: "12px" }}>
-                      <Avatar
-                        size={32}
-                        icon={<RobotOutlined />}
-                        style={{ backgroundColor: "#52c41a", flexShrink: 0 }}
-                      />
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-start",
-                          maxWidth: "70%",
-                        }}
-                      >
-                        {/* 工具调用过程卡片 */}
-                        {toolEventCards.length > 0 && (
-                          <div style={{ width: "100%", marginBottom: 8 }}>
-                            {toolEventCards.map((e, idx) => (
-                              <Card key={idx} size="small" style={{ marginBottom: 8 }}>
-                                <Space align="start">
-                                  <ToolOutlined />
-                                  <div>
-                                    <div style={{ fontWeight: 500 }}>{e.toolName}</div>
-                                    {e.args && (
-                                      <div style={{ fontSize: 12, color: "#666", whiteSpace: "pre-wrap" }}>
-                                        {`参数: ${e.args}`}
+                {/* 显示流式响应中的AI消息（包括思考占位） */}
+                {isStreaming &&
+                  streamingConversationId === currentConversationId && (
+                    <div style={{ marginBottom: "24px" }}>
+                      <div style={{ display: "flex", gap: "12px" }}>
+                        <Avatar
+                          size={32}
+                          icon={<RobotOutlined />}
+                          style={{ backgroundColor: "#52c41a", flexShrink: 0 }}
+                        />
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                            maxWidth: "70%",
+                          }}
+                        >
+                          {/* 工具调用过程（流式）——采用与历史消息相同风格 */}
+                          {toolEventCards.length > 0 && (
+                            <div style={{ marginTop: 8, width: "100%" }}>
+                              <Collapse size="small" destroyInactivePanel>
+                                {toolEventCards.map((e, idx) => {
+                                  const statusColor =
+                                    e.status === "success"
+                                      ? "green"
+                                      : e.status === "failed"
+                                        ? "red"
+                                        : "orange";
+                                  const durationText = `${e.durationMs ?? 0} ms`;
+                                  return (
+                                    <Collapse.Panel
+                                      key={`${e.toolName || "tool"}:${idx}`}
+                                      header={
+                                        <Space>
+                                          <ToolOutlined />
+                                          <Text strong>{e.toolName || "工具"}</Text>
+                                          <Tag color={statusColor}>{e.status}</Tag>
+                                          <Text type="secondary">{durationText}</Text>
+                                        </Space>
+                                      }
+                                    >
+                                      <div style={{ fontSize: 12, color: "#666" }}>
+                                        <div style={{ marginBottom: 6 }}>输入参数:</div>
+                                        <pre
+                                          style={{
+                                            background: "#f7f7f7",
+                                            padding: 8,
+                                            borderRadius: 6,
+                                            overflow: "auto",
+                                            maxHeight: 220,
+                                          }}
+                                        >
+                                          {(() => {
+                                            try {
+                                              return JSON.stringify(
+                                                typeof e.args === "string"
+                                                  ? { input: e.args }
+                                                  : e.args || {},
+                                                null,
+                                                2,
+                                              );
+                                            } catch {
+                                              return String(e.args ?? "");
+                                            }
+                                          })()}
+                                        </pre>
+                                        <div style={{ marginTop: 8, marginBottom: 6 }}>
+                                          输出结果:
+                                        </div>
+                                        <pre
+                                          style={{
+                                            background: "#f7f7f7",
+                                            padding: 8,
+                                            borderRadius: 6,
+                                            overflow: "auto",
+                                            maxHeight: 220,
+                                          }}
+                                        >
+                                          {e.status === "running" && !e.resultPreview
+                                            ? "执行中..."
+                                            : (() => {
+                                                try {
+                                                  // 尝试把 resultPreview 解析为 JSON 优先渲染
+                                                  const parsed = JSON.parse(
+                                                    typeof e.resultPreview === "string"
+                                                      ? e.resultPreview
+                                                      : JSON.stringify(e.resultPreview ?? {}),
+                                                  );
+                                                  return JSON.stringify(parsed, null, 2);
+                                                } catch {
+                                                  return typeof e.resultPreview === "string"
+                                                    ? e.resultPreview
+                                                    : JSON.stringify(e.resultPreview ?? {}, null, 2);
+                                                }
+                                              })()}
+                                        </pre>
+                                        {e.status === "failed" && e.error && (
+                                          <div style={{ color: "#ff4d4f", marginTop: 6 }}>
+                                            错误: {e.error}
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                    <div style={{ fontSize: 12, color: e.status === "failed" ? "#ff4d4f" : "#666" }}>
-                                      {e.status === "running"
-                                        ? "执行中..."
-                                        : e.status === "success"
-                                          ? `执行完成 (${e.durationMs ?? 0} ms)`
-                                          : `执行失败 (${e.durationMs ?? 0} ms): ${e.error || ""}`}
-                                    </div>
-                                    {e.resultPreview && (
-                                      <div style={{ marginTop: 4, fontSize: 12, color: "#555", whiteSpace: "pre-wrap" }}>
-                                        {e.resultPreview}
-                                      </div>
-                                    )}
-                                  </div>
-                                </Space>
-                              </Card>
-                            ))}
+                                    </Collapse.Panel>
+                                  );
+                                })}
+                              </Collapse>
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              background: "#fff",
+                              color: "#000",
+                              padding: "12px 16px",
+                              borderRadius: "12px",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                              marginBottom: "4px",
+                              maxWidth: "fit-content",
+                              minWidth: "20px",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {streamingMessage ? (
+                              <>
+                                <MarkdownRenderer content={streamingMessage} />
+                                <span
+                                  style={{
+                                    animation: "blink 1s infinite",
+                                    marginLeft: "2px",
+                                  }}
+                                >
+                                  |
+                                </span>
+                              </>
+                            ) : (
+                              <Space size={8}>
+                                <Spin size="small" />
+                                <Text type="secondary">正在思考中...</Text>
+                              </Space>
+                            )}
                           </div>
-                        )}
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#999",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {streamingMessage ? "正在输入..." : "准备开始回答"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                {isLoading &&
+                  !isStreaming &&
+                  loadingConversationId === currentConversationId && (
+                    <div style={{ marginBottom: "24px" }}>
+                      <div style={{ display: "flex", gap: "12px" }}>
+                        <Avatar
+                          size={32}
+                          icon={<RobotOutlined />}
+                          style={{ backgroundColor: "#52c41a" }}
+                        />
                         <div
                           style={{
                             background: "#fff",
-                            color: "#000",
                             padding: "12px 16px",
                             borderRadius: "12px",
                             boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                            marginBottom: "4px",
-                            maxWidth: "fit-content",
-                            minWidth: "20px",
-                            wordBreak: "break-word",
                           }}
                         >
-                          <MarkdownRenderer content={streamingMessage} />
-                          <span
-                            style={{
-                              animation: "blink 1s infinite",
-                              marginLeft: "2px",
-                            }}
-                          >
-                            |
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#999",
-                            marginTop: "4px",
-                          }}
-                        >
-                          正在输入...
+                          <Spin size="small" />
+                          <Text type="secondary" style={{ marginLeft: "8px" }}>
+                            正在思考中...
+                          </Text>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {isLoading && !isStreaming && loadingConversationId === currentConversationId && (
-                  <div style={{ marginBottom: "24px" }}>
-                    <div style={{ display: "flex", gap: "12px" }}>
-                      <Avatar
-                        size={32}
-                        icon={<RobotOutlined />}
-                        style={{ backgroundColor: "#52c41a" }}
-                      />
-                      <div
-                        style={{
-                          background: "#fff",
-                          padding: "12px 16px",
-                          borderRadius: "12px",
-                          boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                        }}
-                      >
-                        <Spin size="small" />
-                        <Text type="secondary" style={{ marginLeft: "8px" }}>
-                          正在思考中...
-                        </Text>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
               </>
             )}
 
