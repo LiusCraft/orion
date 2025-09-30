@@ -43,15 +43,15 @@ type LoginResponse struct {
 }
 
 type UserInfo struct {
-	ID          uuid.UUID  `json:"id"`
-	Username    string     `json:"username"`
-	Email       string     `json:"email"`
-	DisplayName string     `json:"displayName"`
-	AvatarURL   string     `json:"avatarURL"`
-	Role        string     `json:"role"`
-	Department  string     `json:"department"`
-	Status      string     `json:"status"`
-	LastLoginAt *time.Time `json:"lastLoginAt"`
+    ID          uuid.UUID  `json:"id"`
+    Username    string     `json:"username"`
+    Email       string     `json:"email"`
+    DisplayName string     `json:"displayName"`
+    AvatarURL   string     `json:"avatarUrl"`
+    Role        string     `json:"role"`
+    Department  string     `json:"department"`
+    Status      string     `json:"status"`
+    LastLoginAt *time.Time `json:"lastLoginAt"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {

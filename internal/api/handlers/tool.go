@@ -165,11 +165,18 @@ func (h *ToolHandler) CreateTool(c *gin.Context) {
 }
 
 func (h *ToolHandler) GetTools(c *gin.Context) {
-	// 分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	toolType := c.Query("tool_type")
-	enabled := c.Query("enabled")
+    // 分页参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "20")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
+    toolType := c.Query("toolType")
+    if toolType == "" {
+        toolType = c.Query("tool_type")
+    }
+    enabled := c.Query("enabled")
 
 	if page < 1 {
 		page = 1
@@ -222,15 +229,15 @@ func (h *ToolHandler) GetTools(c *gin.Context) {
 		responses = append(responses, h.buildToolResponse(tool, creatorInfo))
 	}
 
-	result := map[string]interface{}{
-		"tools": responses,
-		"pagination": map[string]interface{}{
-			"page":       page,
-			"page_size":  pageSize,
-			"total":      total,
-			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
-		},
-	}
+    result := map[string]interface{}{
+        "data": responses,
+        "pagination": map[string]interface{}{
+            "page":      page,
+            "pageSize":  pageSize,
+            "total":     total,
+            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+        },
+    }
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }
@@ -477,10 +484,17 @@ func (h *ToolHandler) GetExecutions(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	role, _ := c.Get("role")
 
-	// 分页参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	toolID := c.Query("tool_id")
+    // 分页参数（优先驼峰，兼容下划线）
+    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+    pageSizeStr := c.Query("pageSize")
+    if pageSizeStr == "" {
+        pageSizeStr = c.DefaultQuery("page_size", "20")
+    }
+    pageSize, _ := strconv.Atoi(pageSizeStr)
+    toolID := c.Query("toolId")
+    if toolID == "" {
+        toolID = c.Query("tool_id")
+    }
 	status := c.Query("status")
 
 	if page < 1 {
@@ -527,15 +541,15 @@ func (h *ToolHandler) GetExecutions(c *gin.Context) {
 		responses = append(responses, h.buildExecutionResponse(execution))
 	}
 
-	result := map[string]interface{}{
-		"executions": responses,
-		"pagination": map[string]interface{}{
-			"page":       page,
-			"page_size":  pageSize,
-			"total":      total,
-			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
-		},
-	}
+    result := map[string]interface{}{
+        "data": responses,
+        "pagination": map[string]interface{}{
+            "page":      page,
+            "pageSize":  pageSize,
+            "total":     total,
+            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+        },
+    }
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }

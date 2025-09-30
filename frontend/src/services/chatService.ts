@@ -11,6 +11,7 @@ import type {
 export const chatService = {
   // 获取对话列表
   async getConversations(page = 1, pageSize = 20): Promise<PaginationResponse<Conversation>> {
+    // 使用驼峰命名的分页参数
     const response = await apiClient.get<ApiResponse<PaginationResponse<Conversation>>>(
       `/conversations?page=${page}&pageSize=${pageSize}`
     )
@@ -66,9 +67,10 @@ export const chatService = {
   },
 
   // 创建SSE连接进行流式对话
-  createChatStream(conversationId: string): EventSource {
-    // 直接创建SSE连接接收流式响应，不再发送消息（消息已在前端发送）
-    return apiClient.createEventSource(`/conversations/${conversationId}/stream`)
+  createChatStream(conversationId: string, userMessageId?: string): EventSource {
+    // 将用户消息ID显式传给后端（驼峰命名），确保上下文配对正确
+    const query = userMessageId ? `?userMessageId=${encodeURIComponent(userMessageId)}` : ''
+    return apiClient.createEventSource(`/conversations/${conversationId}/stream${query}`)
   },
 
   // 解析SSE事件

@@ -17,11 +17,13 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host         string `mapstructure:"host"`
-	Port         string `mapstructure:"port"`
-	Mode         string `mapstructure:"mode"` // debug, release
-	ReadTimeout  int    `mapstructure:"read_timeout"`
-	WriteTimeout int    `mapstructure:"write_timeout"`
+    Host         string `mapstructure:"host"`
+    Port         string `mapstructure:"port"`
+    Mode         string `mapstructure:"mode"` // debug, release
+    ReadTimeout  int    `mapstructure:"read_timeout"`
+    WriteTimeout int    `mapstructure:"write_timeout"`
+    // SSE 心跳间隔（秒），用于保持长连接活跃
+    SSEHeartbeat int    `mapstructure:"sse_heartbeat"`
 }
 
 type DatabaseConfig struct {
@@ -177,8 +179,11 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("server.mode", "debug")
-	viper.SetDefault("server.read_timeout", 30)
-	viper.SetDefault("server.write_timeout", 30)
+    viper.SetDefault("server.read_timeout", 60)
+    // 对于SSE长连接，写超时为0（不限制）
+    viper.SetDefault("server.write_timeout", 0)
+    // SSE 心跳，默认5秒（可根据代理链路调小）
+    viper.SetDefault("server.sse_heartbeat", 5)
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")

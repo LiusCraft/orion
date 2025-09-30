@@ -101,7 +101,8 @@ class ApiClient {
   // SSE连接方法
   createEventSource(url: string): EventSource {
     const { accessToken } = useAuthStore.getState()
-    const fullUrl = `${this.client.defaults.baseURL}${url}?token=${accessToken}`
+    const sep = url.includes('?') ? '&' : '?'
+    const fullUrl = `${this.client.defaults.baseURL}${url}${sep}token=${accessToken}`
     return new EventSource(fullUrl)
   }
 }
