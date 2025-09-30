@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	"errors"
-	"net/http"
-	"strconv"
-	"time"
+    "errors"
+    "net/http"
+    "strconv"
+    "time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+    "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
+    "gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/database/models"
-	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+    "github.com/cdnagent/cdnagent/internal/database/models"
+    pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+    toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
 )
 
 type ToolHandler struct {
@@ -23,13 +24,13 @@ func NewToolHandler(db *gorm.DB) *ToolHandler {
 }
 
 type CreateToolRequest struct {
-	Name        string                 `json:"name" binding:"required,max=100"`
-	DisplayName string                 `json:"displayName" binding:"required,max=100"`
-	Description string                 `json:"description"`
-	ToolType    string                 `json:"toolType" binding:"required,oneof=api webhook script"`
-	Config      map[string]interface{} `json:"config" binding:"required"`
-	AuthConfig  map[string]interface{} `json:"authConfig"`
-	Enabled     *bool                  `json:"enabled"`
+    Name        string                 `json:"name" binding:"required,max=100"`
+    DisplayName string                 `json:"displayName" binding:"required,max=100"`
+    Description string                 `json:"description"`
+    ToolType    string                 `json:"toolType" binding:"required,oneof=api webhook script mcp"`
+    Config      map[string]interface{} `json:"config" binding:"required"`
+    AuthConfig  map[string]interface{} `json:"authConfig"`
+    Enabled     *bool                  `json:"enabled"`
 }
 
 type UpdateToolRequest struct {
@@ -45,18 +46,18 @@ type ExecuteToolRequest struct {
 }
 
 type ToolResponse struct {
-	ID          uuid.UUID              `json:"id"`
-	Name        string                 `json:"name"`
-	DisplayName string                 `json:"displayName"`
-	Description string                 `json:"description"`
-	ToolType    string                 `json:"toolType"`
-	Config      map[string]interface{} `json:"config"`
-	AuthConfig  map[string]interface{} `json:"authConfig,omitempty"`
-	Enabled     bool                   `json:"enabled"`
-	CreatedBy   *uuid.UUID             `json:"createdBy"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
-	Creator     *CreatorInfo           `json:"creator,omitempty"`
+    ID          uuid.UUID              `json:"id"`
+    Name        string                 `json:"name"`
+    DisplayName string                 `json:"displayName"`
+    Description string                 `json:"description"`
+    ToolType    string                 `json:"toolType"`
+    Config      models.JSONMap         `json:"config"`
+    AuthConfig  models.JSONMap         `json:"authConfig,omitempty"`
+    Enabled     bool                   `json:"enabled"`
+    CreatedBy   *uuid.UUID             `json:"createdBy"`
+    CreatedAt   time.Time              `json:"createdAt"`
+    UpdatedAt   time.Time              `json:"updatedAt"`
+    Creator     *CreatorInfo           `json:"creator,omitempty"`
 }
 
 type ToolExecutionResponse struct {
@@ -64,8 +65,8 @@ type ToolExecutionResponse struct {
 	ToolID          uuid.UUID              `json:"toolId"`
 	MessageID       *uuid.UUID             `json:"messageId"`
 	UserID          uuid.UUID              `json:"userId"`
-	InputParams     map[string]interface{} `json:"inputParams"`
-	OutputResult    map[string]interface{} `json:"outputResult"`
+    InputParams     models.JSONMap         `json:"inputParams"`
+    OutputResult    models.JSONMap         `json:"outputResult"`
 	ExecutionTimeMs *int                   `json:"executionTimeMs"`
 	Status          string                 `json:"status"`
 	ErrorMessage    string                 `json:"errorMessage"`
@@ -80,18 +81,7 @@ type CreatorInfo struct {
 }
 
 func (h *ToolHandler) CreateTool(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	role, _ := c.Get("role")
-
-	// 检查权限：只有管理员可以创建工具
-	if role.(string) != "admin" {
-		c.JSON(http.StatusForbidden, pkgErrors.NewErrorResponse(
-			40301,
-			"权限不足",
-			nil,
-		))
-		return
-	}
+    userID, _ := c.Get("user_id")
 
 	var req CreateToolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -139,17 +129,17 @@ func (h *ToolHandler) CreateTool(c *gin.Context) {
 	}
 
 	userUUID := userID.(uuid.UUID)
-	tool := models.Tool{
-		ID:          uuid.New(),
-		Name:        req.Name,
-		DisplayName: req.DisplayName,
-		Description: req.Description,
-		ToolType:    req.ToolType,
-		Config:      req.Config,
-		AuthConfig:  req.AuthConfig,
-		Enabled:     enabled,
-		CreatedBy:   &userUUID,
-	}
+    tool := models.Tool{
+        ID:          uuid.New(),
+        Name:        req.Name,
+        DisplayName: req.DisplayName,
+        Description: req.Description,
+        ToolType:    req.ToolType,
+        Config:      models.JSONMap(req.Config),
+        AuthConfig:  models.JSONMap(req.AuthConfig),
+        Enabled:     enabled,
+        CreatedBy:   &userUUID,
+    }
 
 	if err := h.db.Create(&tool).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, pkgErrors.NewErrorResponse(
@@ -269,18 +259,7 @@ func (h *ToolHandler) GetTool(c *gin.Context) {
 }
 
 func (h *ToolHandler) UpdateTool(c *gin.Context) {
-	role, _ := c.Get("role")
-	toolID := c.Param("id")
-
-	// 检查权限：只有管理员可以更新工具
-	if role.(string) != "admin" {
-		c.JSON(http.StatusForbidden, pkgErrors.NewErrorResponse(
-			40302,
-			"权限不足",
-			nil,
-		))
-		return
-	}
+    toolID := c.Param("id")
 
 	var tool models.Tool
 	if err := h.db.Where("id = ?", toolID).First(&tool).Error; err != nil {
@@ -313,21 +292,21 @@ func (h *ToolHandler) UpdateTool(c *gin.Context) {
 	if req.Description != "" {
 		updates["description"] = req.Description
 	}
-	if req.Config != nil {
-		// 验证新配置
-		if err := h.validateToolConfig(tool.ToolType, req.Config); err != nil {
-			c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
-				40034,
-				"工具配置错误",
-				err.Error(),
-			))
-			return
-		}
-		updates["config"] = req.Config
-	}
-	if req.AuthConfig != nil {
-		updates["auth_config"] = req.AuthConfig
-	}
+    if req.Config != nil {
+        // 验证新配置
+        if err := h.validateToolConfig(tool.ToolType, req.Config); err != nil {
+            c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
+                40034,
+                "工具配置错误",
+                err.Error(),
+            ))
+            return
+        }
+        updates["config"] = models.JSONMap(req.Config)
+    }
+    if req.AuthConfig != nil {
+        updates["auth_config"] = models.JSONMap(req.AuthConfig)
+    }
 	if req.Enabled != nil {
 		updates["enabled"] = *req.Enabled
 	}
@@ -358,18 +337,7 @@ func (h *ToolHandler) UpdateTool(c *gin.Context) {
 }
 
 func (h *ToolHandler) DeleteTool(c *gin.Context) {
-	role, _ := c.Get("role")
-	toolID := c.Param("id")
-
-	// 检查权限：只有管理员可以删除工具
-	if role.(string) != "admin" {
-		c.JSON(http.StatusForbidden, pkgErrors.NewErrorResponse(
-			40303,
-			"权限不足",
-			nil,
-		))
-		return
-	}
+    toolID := c.Param("id")
 
 	var tool models.Tool
 	if err := h.db.Where("id = ?", toolID).First(&tool).Error; err != nil {
@@ -411,6 +379,36 @@ func (h *ToolHandler) DeleteTool(c *gin.Context) {
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse("工具删除成功"))
 }
 
+// ToggleTool 启用/禁用工具（MVP：任何登录用户可操作）
+func (h *ToolHandler) ToggleTool(c *gin.Context) {
+    toolID := c.Param("id")
+    var body struct{ Enabled bool `json:"enabled"` }
+    if err := c.ShouldBindJSON(&body); err != nil {
+        c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(40037, "请求参数错误", err.Error()))
+        return
+    }
+    var tool models.Tool
+    if err := h.db.Where("id = ?", toolID).First(&tool).Error; err != nil {
+        c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(40435, "工具不存在", nil))
+        return
+    }
+    if err := h.db.Model(&tool).Updates(map[string]interface{}{
+        "enabled":    body.Enabled,
+        "updated_at": time.Now(),
+    }).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, pkgErrors.NewErrorResponse(50039, "更新工具状态失败", err.Error()))
+        return
+    }
+    h.db.Preload("Creator").Where("id = ?", toolID).First(&tool)
+    resp := h.buildToolResponse(tool, func() *CreatorInfo {
+        if tool.Creator != nil {
+            return &CreatorInfo{ID: tool.Creator.ID, Username: tool.Creator.Username, DisplayName: tool.Creator.DisplayName}
+        }
+        return nil
+    }())
+    c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(resp))
+}
+
 func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	toolID := c.Param("id")
@@ -436,13 +434,13 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 	}
 
 	// 创建执行记录
-	execution := models.ToolExecution{
-		ID:          uuid.New(),
-		ToolID:      tool.ID,
-		UserID:      userID.(uuid.UUID),
-		InputParams: req.InputParams,
-		Status:      "pending",
-	}
+    execution := models.ToolExecution{
+        ID:          uuid.New(),
+        ToolID:      tool.ID,
+        UserID:      userID.(uuid.UUID),
+        InputParams: models.JSONMap(req.InputParams),
+        Status:      "pending",
+    }
 
 	if err := h.db.Create(&execution).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, pkgErrors.NewErrorResponse(
@@ -468,8 +466,8 @@ func (h *ToolHandler) ExecuteTool(c *gin.Context) {
 		updates["error_message"] = err.Error()
 	} else {
 		updates["status"] = "success"
-		updates["output_result"] = result
-	}
+        updates["output_result"] = models.JSONMap(result)
+    }
 
 	h.db.Model(&execution).Updates(updates)
 
@@ -555,30 +553,52 @@ func (h *ToolHandler) GetExecutions(c *gin.Context) {
 }
 
 func (h *ToolHandler) validateToolConfig(toolType string, config map[string]interface{}) error {
-	switch toolType {
-	case "api":
-		// 验证API工具配置
-		if _, ok := config["url"]; !ok {
-			return errors.New("API工具需要配置url")
-		}
-		if _, ok := config["method"]; !ok {
-			return errors.New("API工具需要配置method")
-		}
-	case "webhook":
-		// 验证Webhook工具配置
-		if _, ok := config["url"]; !ok {
-			return errors.New("Webhook工具需要配置url")
-		}
-	case "script":
-		// 验证脚本工具配置
-		if _, ok := config["script"]; !ok {
-			return errors.New("脚本工具需要配置script")
-		}
-		if _, ok := config["language"]; !ok {
-			return errors.New("脚本工具需要配置language")
-		}
-	}
-	return nil
+    switch toolType {
+    case "api":
+        // 验证API工具配置
+        if _, ok := config["url"]; !ok {
+            return errors.New("API工具需要配置url")
+        }
+        if _, ok := config["method"]; !ok {
+            return errors.New("API工具需要配置method")
+        }
+    case "webhook":
+        // 验证Webhook工具配置
+        if _, ok := config["url"]; !ok {
+            return errors.New("Webhook工具需要配置url")
+        }
+    case "script":
+        // 验证脚本工具配置
+        if _, ok := config["script"]; !ok {
+            return errors.New("脚本工具需要配置script")
+        }
+        if _, ok := config["language"]; !ok {
+            return errors.New("脚本工具需要配置language")
+        }
+    case "mcp":
+        // 验证 MCP 工具配置
+        // 必填：protocol (sse|http_streamable|stdio)
+        protoRaw, ok := config["protocol"]
+        if !ok {
+            return errors.New("MCP工具需要配置protocol：sse | http_streamable | stdio")
+        }
+        proto, _ := protoRaw.(string)
+        switch proto {
+        case "sse", "http_streamable":
+            if _, ok := config["endpoint"]; !ok {
+                return errors.New("MCP网络协议需要配置endpoint")
+            }
+            // 建议提供authorization（可在config.authorization中传递）
+            // 不做强校验，连接测试时会校验
+        case "stdio":
+            if _, ok := config["command"]; !ok {
+                return errors.New("MCP stdio 需要配置command")
+            }
+        default:
+            return errors.New("不支持的MCP协议，允许：sse | http_streamable | stdio")
+        }
+    }
+    return nil
 }
 
 func (h *ToolHandler) executeToolLogic(tool models.Tool, params map[string]interface{}) (map[string]interface{}, error) {
@@ -672,4 +692,187 @@ func (h *ToolHandler) buildExecutionResponse(execution models.ToolExecution) Too
 	}
 
 	return response
+}
+
+// ===== 工具类型/模板/验证/测试 =====
+
+// ToolTypeInfo 用于前端渲染工具类型和配置schema
+type ToolTypeInfo struct {
+    Type         string                 `json:"type"`
+    Name         string                 `json:"name"`
+    Description  string                 `json:"description"`
+    ConfigSchema map[string]interface{} `json:"configSchema"`
+    Examples     map[string]interface{} `json:"examples,omitempty"`
+}
+
+// GetToolTypes 返回支持的工具类型（当前仅 mcp）
+func (h *ToolHandler) GetToolTypes(c *gin.Context) {
+    types := []ToolTypeInfo{
+        {
+            Type:        "mcp",
+            Name:        "MCP Server",
+            Description: "通过 MCP 协议接入外部工具（支持 SSE、HTTP-Streamable、STDIO）",
+            ConfigSchema: map[string]interface{}{
+                "protocol": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "协议",
+                    "description": "选择 MCP 传输协议",
+                },
+                "endpoint": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "Endpoint",
+                    "description": "SSE/HTTP-Streamable 服务地址（STDIO忽略）",
+                },
+                "authorization": map[string]interface{}{
+                    "type":        "string",
+                    "format":      "password",
+                    "title":       "Authorization",
+                    "description": "可选：Bearer <token>，网络协议常用",
+                },
+                "timeout": map[string]interface{}{
+                    "type":        "number",
+                    "title":       "超时(秒)",
+                    "description": "请求超时，默认15秒",
+                },
+                "command": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "命令(仅STDIO)",
+                    "description": "本地/容器内可执行文件路径",
+                },
+                "args": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "参数(仅STDIO)",
+                    "description": "空格分隔",
+                },
+                "env": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "环境变量(仅STDIO)",
+                    "description": "按换行或;分隔的 KEY=VALUE 列表",
+                },
+                "allowTools": map[string]interface{}{
+                    "type":        "string",
+                    "title":       "工具白名单",
+                    "description": "逗号分隔的工具名，留空表示全部",
+                },
+            },
+            Examples: map[string]interface{}{
+                "http_streamable": map[string]string{
+                    "protocol":      "http_streamable",
+                    "endpoint":      "https://api.example.com/v1/mcp/http-streamable/xxxx",
+                    "authorization": "Bearer sk-***",
+                    "timeout":       "15",
+                },
+                "sse": map[string]string{
+                    "protocol":      "sse",
+                    "endpoint":      "https://api.example.com/v1/mcp/sse",
+                    "authorization": "Bearer sk-***",
+                },
+                "stdio": map[string]string{
+                    "protocol": "stdio",
+                    "command":  "./mcp-server",
+                    "args":     "--port 8080",
+                },
+            },
+        },
+    }
+    c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(types))
+}
+
+// GetToolTemplate 返回某类型的模板（仅 mcp）
+func (h *ToolHandler) GetToolTemplate(c *gin.Context) {
+    toolType := c.Param("type")
+    if toolType != "mcp" {
+        c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(40436, "不支持的工具类型", nil))
+        return
+    }
+    data := map[string]interface{}{
+        "type":        "mcp",
+        "name":        "MCP Server",
+        "description": "通过 MCP 协议接入外部工具",
+        "configSchema": map[string]interface{}{
+            "protocol": map[string]interface{}{"type": "string", "title": "协议"},
+            "endpoint": map[string]interface{}{"type": "string", "title": "Endpoint"},
+            "authorization": map[string]interface{}{"type": "string", "format": "password", "title": "Authorization"},
+            "timeout": map[string]interface{}{"type": "number", "title": "超时(秒)"},
+            "command": map[string]interface{}{"type": "string", "title": "命令(仅STDIO)"},
+            "args": map[string]interface{}{"type": "string", "title": "参数(仅STDIO)"},
+            "env": map[string]interface{}{"type": "string", "title": "环境变量(仅STDIO)"},
+            "allowTools": map[string]interface{}{"type": "string", "title": "工具白名单(逗号分隔)"},
+        },
+        "defaultConfig": map[string]interface{}{
+            "protocol": "http_streamable",
+            "timeout":  15,
+        },
+        "examples": map[string]interface{}{},
+    }
+    c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(data))
+}
+
+// ValidateToolTypeConfig 校验某类型工具配置（仅 mcp）
+func (h *ToolHandler) ValidateToolTypeConfig(c *gin.Context) {
+    toolType := c.Param("type")
+    var body struct {
+        Config map[string]interface{} `json:"config"`
+    }
+    if err := c.ShouldBindJSON(&body); err != nil {
+        c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(40035, "请求参数错误", err.Error()))
+        return
+    }
+
+    if toolType != "mcp" {
+        c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
+            "valid":    false,
+            "errors":   []string{"不支持的工具类型"},
+            "warnings": []string{},
+        }))
+        return
+    }
+    if err := h.validateToolConfig("mcp", body.Config); err != nil {
+        c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
+            "valid":    false,
+            "errors":   []string{err.Error()},
+            "warnings": []string{},
+        }))
+        return
+    }
+    c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{"valid": true}))
+}
+
+// TestToolConnection 测试工具连通性（仅实现 mcp）
+func (h *ToolHandler) TestToolConnection(c *gin.Context) {
+    var body struct {
+        ToolType string                 `json:"toolType"`
+        Config   map[string]interface{} `json:"config"`
+    }
+    if err := c.ShouldBindJSON(&body); err != nil {
+        c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(40036, "请求参数错误", err.Error()))
+        return
+    }
+    if body.ToolType != "mcp" {
+        c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
+            "success": false,
+            "message": "仅支持测试mcp类型",
+        }))
+        return
+    }
+
+    start := time.Now()
+    count, err := toolsSvc.TestMCPConnection(c.Request.Context(), body.Config)
+    dur := time.Since(start).Milliseconds()
+    if err != nil {
+        c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
+            "success":      false,
+            "message":      err.Error(),
+            "responseTime": dur,
+        }))
+        return
+    }
+    c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(map[string]interface{}{
+        "success":      true,
+        "message":      "连接成功",
+        "responseTime": dur,
+        "details": map[string]interface{}{
+            "toolCount": count,
+        },
+    }))
 }

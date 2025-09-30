@@ -14,6 +14,8 @@ import {
   Spin,
   Modal,
   Tooltip,
+  Collapse,
+  Tag,
 } from "antd";
 import {
   SendOutlined,
@@ -185,6 +187,8 @@ const ChatPage: React.FC = () => {
       try {
         const eventData = JSON.parse(event.data);
         console.log("AI开始响应:", eventData.data);
+        // 清空本次工具事件
+        setToolEventCards([]);
       } catch (error) {
         console.error("解析message_start事件失败:", error);
       }
@@ -277,6 +281,60 @@ const ChatPage: React.FC = () => {
       eventSource.close();
       setSseConnection(null);
       setStreamingConversationId((prev) => (prev === conversationId ? null : prev));
+    });
+
+    // 工具调用开始
+    eventSource.addEventListener("tool_call_started", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const data = eventData.data || {};
+        setToolEventCards((prev) => [
+          ...prev,
+          {
+            toolName: data.toolName,
+            args: data.args,
+            status: "running",
+            startedAt: data.timestamp,
+          },
+        ]);
+      } catch (err) {
+        console.error("解析tool_call_started事件失败:", err);
+      }
+    });
+
+    // 工具调用结束
+    eventSource.addEventListener("tool_call_finished", (event: MessageEvent) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        const data = eventData.data || {};
+        setToolEventCards((prev) => {
+          const idx = [...prev].reverse().findIndex((t) => t.toolName === data.toolName && t.status === "running");
+          if (idx === -1) {
+            return [
+              ...prev,
+              {
+                toolName: data.toolName,
+                status: data.status,
+                durationMs: data.durationMs,
+                resultPreview: data.resultPreview || data.result,
+                error: data.error,
+              },
+            ];
+          }
+          const realIdx = prev.length - 1 - idx;
+          const copy = prev.slice();
+          copy[realIdx] = {
+            ...copy[realIdx],
+            status: data.status,
+            durationMs: data.durationMs,
+            resultPreview: data.resultPreview || data.result,
+            error: data.error,
+          };
+          return copy;
+        });
+      } catch (err) {
+        console.error("解析tool_call_finished事件失败:", err);
+      }
     });
   };
 
@@ -476,6 +534,8 @@ const ChatPage: React.FC = () => {
     return Math.max(0, end - start);
   };
 
+  const [openToolPanels, setOpenToolPanels] = useState<Record<string, string | undefined>>({});
+
   const renderMessage = (message: MessageType) => {
     const isUser = message.senderType === "user";
 
@@ -544,35 +604,52 @@ const ChatPage: React.FC = () => {
               </div>
             ) : null}
 
-            {/* 工具调用结果 - 从 metadata 中解析 */}
-            {message.metadata?.tools &&
-            Array.isArray(message.metadata.tools) ? (
-              <div style={{ marginTop: "8px" }}>
-                {(message.metadata.tools as ToolCall[]).map(
-                  (tool: ToolCall, index: number) => (
-                    <Card
-                      key={index}
-                      size="small"
-                      style={{ marginBottom: "8px" }}
+            {/* 工具调用结果（历史）：从 metadata.tools 渲染，可展开查看输入/输出 */}
+            {message.metadata?.tools && Array.isArray(message.metadata.tools) ? (
+              <div style={{ marginTop: 8, width: "100%" }}>
+                <Collapse
+                  size="small"
+                  activeKey={openToolPanels[message.id] ? [openToolPanels[message.id] as string] : undefined}
+                  onChange={(keys) => {
+                    const arr = Array.isArray(keys) ? (keys as string[]) : [keys as string];
+                    const k = arr.length > 0 ? arr[0] : undefined;
+                    setOpenToolPanels((prev) => ({ ...prev, [message.id]: k }));
+                  }}
+                >
+                  {(message.metadata.tools as any[]).map((t: any, idx: number) => {
+                    const panelKey = `${t.toolId || ""}:${t.createdAt || idx}`;
+                    return (
+                    <Collapse.Panel
+                      key={panelKey}
+                      header={
+                        <Space>
+                          <ToolOutlined />
+                          <Text strong>{t.displayName || t.name}</Text>
+                          {t.toolType && (
+                            <Tag color="blue" style={{ textTransform: "uppercase" }}>
+                              {t.toolType}
+                            </Tag>
+                          )}
+                          <Tag color={t.status === "success" ? "green" : t.status === "failed" ? "red" : "orange"}>
+                            {t.status}
+                          </Tag>
+                          <Text type="secondary">{(t.executionTimeMs ?? 0) + " ms"}</Text>
+                        </Space>
+                      }
                     >
-                      <Space>
-                        <ToolOutlined />
-                        <Text strong>{tool.description || ""}</Text>
-                      </Space>
-                      {tool.result && (
-                        <div
-                          style={{
-                            marginTop: "8px",
-                            fontSize: "12px",
-                            color: "#666",
-                          }}
-                        >
-                          {String(tool.result)}
-                        </div>
-                      )}
-                    </Card>
-                  ),
-                )}
+                      <div style={{ fontSize: 12, color: "#666" }}>
+                        <div style={{ marginBottom: 6 }}>输入参数:</div>
+                        <pre style={{ background: "#f7f7f7", padding: 8, borderRadius: 6, overflow: "auto" }}>
+{JSON.stringify(t.inputParams || {}, null, 2)}
+                        </pre>
+                        <div style={{ marginTop: 8, marginBottom: 6 }}>输出结果:</div>
+                        <pre style={{ background: "#f7f7f7", padding: 8, borderRadius: 6, overflow: "auto" }}>
+{JSON.stringify(t.outputResult || {}, null, 2)}
+                        </pre>
+                      </div>
+                    </Collapse.Panel>
+                  );})}
+                </Collapse>
               </div>
             ) : null}
 
@@ -623,6 +700,17 @@ const ChatPage: React.FC = () => {
 
   const conversations = conversationsData?.data || [];
   const messages = currentConversation?.messages?.data || [];
+  const [toolEventCards, setToolEventCards] = useState<
+    Array<{
+      toolName: string;
+      args?: string;
+      status: "running" | "success" | "failed";
+      durationMs?: number;
+      resultPreview?: string;
+      error?: string;
+      startedAt?: string;
+    }>
+  >([]);
 
   return (
     <div
@@ -907,6 +995,38 @@ const ChatPage: React.FC = () => {
                           maxWidth: "70%",
                         }}
                       >
+                        {/* 工具调用过程卡片 */}
+                        {toolEventCards.length > 0 && (
+                          <div style={{ width: "100%", marginBottom: 8 }}>
+                            {toolEventCards.map((e, idx) => (
+                              <Card key={idx} size="small" style={{ marginBottom: 8 }}>
+                                <Space align="start">
+                                  <ToolOutlined />
+                                  <div>
+                                    <div style={{ fontWeight: 500 }}>{e.toolName}</div>
+                                    {e.args && (
+                                      <div style={{ fontSize: 12, color: "#666", whiteSpace: "pre-wrap" }}>
+                                        {`参数: ${e.args}`}
+                                      </div>
+                                    )}
+                                    <div style={{ fontSize: 12, color: e.status === "failed" ? "#ff4d4f" : "#666" }}>
+                                      {e.status === "running"
+                                        ? "执行中..."
+                                        : e.status === "success"
+                                          ? `执行完成 (${e.durationMs ?? 0} ms)`
+                                          : `执行失败 (${e.durationMs ?? 0} ms): ${e.error || ""}`}
+                                    </div>
+                                    {e.resultPreview && (
+                                      <div style={{ marginTop: 4, fontSize: 12, color: "#555", whiteSpace: "pre-wrap" }}>
+                                        {e.resultPreview}
+                                      </div>
+                                    )}
+                                  </div>
+                                </Space>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
                         <div
                           style={{
                             background: "#fff",

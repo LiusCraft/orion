@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Card,
   Button,
@@ -70,6 +70,7 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [selectedType, setSelectedType] = useState<string>("");
+  const [mcpProtocol, setMcpProtocol] = useState<string>("http_streamable");
   const queryClient = useQueryClient();
 
   const { data: toolTypes } = useQuery({
@@ -101,7 +102,25 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
   const handleSubmit = (
     values: CreateToolRequest & Record<string, unknown>,
   ) => {
-    const { name, displayName, description, toolType, ...config } = values;
+    const { name, displayName, description, toolType, ...rest } =
+      values as Record<string, any>;
+
+    // 特殊处理 mcp：根据协议整理配置
+    let config: Record<string, any> = { ...rest };
+    if (toolType === "mcp") {
+      const protocol = rest.protocol as string;
+      config = { protocol };
+      if (protocol === "http_streamable" || protocol === "sse") {
+        if (rest.endpoint) config.endpoint = rest.endpoint;
+        if (rest.timeout) config.timeout = Number(rest.timeout);
+        if (rest.allowTools) config.allowTools = rest.allowTools as string;
+        if (rest.headersText) config.headers = rest.headersText as string; // 多行header
+      } else if (protocol === "stdio") {
+        if (rest.command) config.command = rest.command;
+        if (rest.args) config.args = rest.args as string; // 空格分隔
+        if (rest.envText) config.env = rest.envText as string; // 多行或分号分隔
+      }
+    }
     createToolMutation.mutate({
       name,
       displayName,
@@ -114,7 +133,11 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
 
   const handleTypeChange = (type: string) => {
     setSelectedType(type);
-    if (toolTemplate) {
+    if (type === "mcp") {
+      // 为 mcp 类型设置默认值
+      form.setFieldsValue({ protocol: "http_streamable", timeout: 15 });
+      setMcpProtocol("http_streamable");
+    } else if (toolTemplate) {
       form.setFieldsValue(toolTemplate.defaultConfig);
     }
   };
@@ -165,7 +188,79 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
           <Input.TextArea rows={2} placeholder="描述工具的功能和用途" />
         </Form.Item>
 
-        {selectedType && toolTemplate && (
+        {selectedType === "mcp" && (
+          <>
+            <Divider>工具配置 - MCP</Divider>
+            <Form.Item
+              label="协议"
+              name="protocol"
+              rules={[{ required: true, message: "请选择协议" }]}
+            >
+              <Select
+                options={[
+                  { label: "HTTP Streamable", value: "http_streamable" },
+                  { label: "SSE", value: "sse" },
+                  { label: "STDIO", value: "stdio" },
+                ]}
+                onChange={(v) => setMcpProtocol(v)}
+              />
+            </Form.Item>
+
+            {(mcpProtocol === "http_streamable" || mcpProtocol === "sse") && (
+              <>
+                <Form.Item
+                  label="Endpoint"
+                  name="endpoint"
+                  rules={[{ required: true, message: "请输入 Endpoint" }]}
+                >
+                  <Input placeholder="如：https://api.host/v1/mcp/http-streamable/xxxx 或 https://api.host/v1/mcp/sse" />
+                </Form.Item>
+                <Form.Item
+                  label="Headers"
+                  name="headersText"
+                  tooltip="每行一个Header，例如 Authorization: Bearer xxx"
+                >
+                  <Input.TextArea
+                    rows={4}
+                    placeholder={
+                      "Authorization: Bearer <token>\nX-Custom-Header: value"
+                    }
+                  />
+                </Form.Item>
+                <Form.Item label="超时(秒)" name="timeout">
+                  <Input type="number" placeholder="默认15" />
+                </Form.Item>
+                <Form.Item label="工具白名单(逗号分隔)" name="allowTools">
+                  <Input placeholder="留空表示全部，例如 time.now,time.convert" />
+                </Form.Item>
+              </>
+            )}
+
+            {mcpProtocol === "stdio" && (
+              <>
+                <Form.Item
+                  label="命令"
+                  name="command"
+                  rules={[{ required: true, message: "请输入命令路径" }]}
+                >
+                  <Input placeholder="如 ./mcp-server 或 /usr/local/bin/mcp-server" />
+                </Form.Item>
+                <Form.Item label="参数" name="args">
+                  <Input placeholder="空格分隔，例如 --flag value" />
+                </Form.Item>
+                <Form.Item
+                  label="环境变量"
+                  name="envText"
+                  tooltip="每行或用分号分隔，例如 FOO=bar;TOKEN=xxx"
+                >
+                  <Input.TextArea rows={4} placeholder={"FOO=bar\nTOKEN=xxx"} />
+                </Form.Item>
+              </>
+            )}
+          </>
+        )}
+
+        {selectedType && selectedType !== "mcp" && toolTemplate && (
           <>
             <Divider>工具配置</Divider>
             {/* 根据工具类型动态渲染配置表单 */}
@@ -214,6 +309,8 @@ const ToolsPage: React.FC = () => {
   const [configModalVisible, setConfigModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [editMcpProtocol, setEditMcpProtocol] =
+    useState<string>("http_streamable");
   const [form] = Form.useForm();
 
   // 获取工具列表
@@ -316,6 +413,7 @@ const ToolsPage: React.FC = () => {
       case "api":
       case "webhook":
       case "http":
+      case "mcp":
         return <ApiOutlined />;
       case "config":
       default:
@@ -344,11 +442,31 @@ const ToolsPage: React.FC = () => {
 
   const handleConfigTool = (tool: Tool) => {
     setSelectedTool(tool);
-    form.setFieldsValue({
+    // 预填表单
+    const base: Record<string, any> = {
       displayName: tool.displayName,
       description: tool.description,
-      ...tool.config,
-    });
+    };
+    if (tool.toolType === "mcp") {
+      const cfg = (tool.config || {}) as Record<string, any>;
+      const proto = (cfg.protocol as string) || "http_streamable";
+      setEditMcpProtocol(proto);
+      base.protocol = proto;
+      if (proto === "http_streamable" || proto === "sse") {
+        base.endpoint = cfg.endpoint;
+        base.timeout = cfg.timeout;
+        base.allowTools = cfg.allowTools;
+        // headers 存成字符串（多行）
+        base.headersText = cfg.headers || "";
+      } else if (proto === "stdio") {
+        base.command = cfg.command;
+        base.args = cfg.args;
+        base.envText = cfg.env || "";
+      }
+    } else {
+      Object.assign(base, tool.config || {});
+    }
+    form.setFieldsValue(base);
     setConfigModalVisible(true);
   };
 
@@ -362,7 +480,29 @@ const ToolsPage: React.FC = () => {
   const handleSaveConfig = () => {
     form.validateFields().then((values) => {
       if (selectedTool) {
-        const { displayName, description, ...config } = values;
+        const v = values as Record<string, any>;
+        const displayName = v.displayName;
+        const description = v.description;
+        let config: Record<string, any> = {};
+        if (selectedTool.toolType === "mcp") {
+          const protocol = v.protocol as string;
+          config.protocol = protocol;
+          if (protocol === "http_streamable" || protocol === "sse") {
+            if (v.endpoint) config.endpoint = v.endpoint;
+            if (v.timeout) config.timeout = Number(v.timeout);
+            if (v.allowTools) config.allowTools = v.allowTools as string;
+            if (v.headersText) config.headers = v.headersText as string;
+            else config.headers = "";
+          } else if (protocol === "stdio") {
+            if (v.command) config.command = v.command;
+            if (v.args) config.args = v.args as string;
+            if (v.envText) config.env = v.envText as string;
+            else config.env = "";
+          }
+        } else {
+          const { displayName: _dn, description: _ds, ...rest } = v;
+          config = rest;
+        }
         updateToolMutation.mutate({
           toolId: selectedTool.id,
           data: {
@@ -376,6 +516,33 @@ const ToolsPage: React.FC = () => {
         form.resetFields();
       }
     });
+  };
+
+  // 在编辑弹窗内“测试连接”——基于当前表单值构造config后调用后端 /tools/test
+  const handleTestConfigInModal = () => {
+    if (!selectedTool) return;
+    const v = form.getFieldsValue();
+    let config: Record<string, any> = {};
+    if (selectedTool.toolType === "mcp") {
+      const protocol = v.protocol as string;
+      config.protocol = protocol;
+      if (protocol === "http_streamable" || protocol === "sse") {
+        if (v.endpoint) config.endpoint = v.endpoint;
+        if (v.timeout) config.timeout = Number(v.timeout);
+        if (v.allowTools) config.allowTools = v.allowTools as string;
+        if (v.headersText) config.headers = v.headersText as string;
+        else config.headers = "";
+      } else if (protocol === "stdio") {
+        if (v.command) config.command = v.command;
+        if (v.args) config.args = v.args as string;
+        if (v.envText) config.env = v.envText as string;
+        else config.env = "";
+      }
+    } else {
+      const { displayName: _dn, description: _ds, ...rest } = v;
+      config = rest;
+    }
+    testToolMutation.mutate({ toolType: selectedTool.toolType, config });
   };
 
   const handleDeleteTool = (toolId: string) => {
@@ -835,23 +1002,121 @@ const ToolsPage: React.FC = () => {
 
           <Divider>工具配置</Divider>
 
-          {/* 动态渲染配置字段 */}
-          {selectedTool &&
-            Object.entries(selectedTool.config || {}).map(([key, value]) => (
-              <Form.Item key={key} label={key} name={key}>
-                {typeof value === "boolean" ? (
-                  <Switch />
-                ) : typeof value === "number" ? (
-                  <Input type="number" />
-                ) : key.toLowerCase().includes("password") ||
-                  key.toLowerCase().includes("secret") ||
-                  key.toLowerCase().includes("key") ? (
-                  <Input.Password />
-                ) : (
-                  <Input />
-                )}
+          {/* 编辑弹窗内的测试按钮 */}
+          {selectedTool && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginBottom: 8,
+              }}
+            >
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleTestConfigInModal}
+                loading={testToolMutation.isPending}
+              >
+                测试连接
+              </Button>
+            </div>
+          )}
+
+          {selectedTool?.toolType === "mcp" ? (
+            <>
+              <Form.Item
+                label="协议"
+                name="protocol"
+                rules={[{ required: true, message: "请选择协议" }]}
+              >
+                <Select
+                  options={[
+                    { label: "HTTP Streamable", value: "http_streamable" },
+                    { label: "SSE", value: "sse" },
+                    { label: "STDIO", value: "stdio" },
+                  ]}
+                  onChange={(v) => setEditMcpProtocol(v)}
+                />
               </Form.Item>
-            ))}
+
+              {(editMcpProtocol === "http_streamable" ||
+                editMcpProtocol === "sse") && (
+                <>
+                  <Form.Item
+                    label="Endpoint"
+                    name="endpoint"
+                    rules={[{ required: true, message: "请输入 Endpoint" }]}
+                  >
+                    <Input placeholder="如：https://api.host/v1/mcp/http-streamable/xxxx 或 https://api.host/v1/mcp/sse" />
+                  </Form.Item>
+                  <Form.Item
+                    label="Headers"
+                    name="headersText"
+                    tooltip="每行一个Header，例如 Authorization: Bearer xxx"
+                  >
+                    <Input.TextArea
+                      rows={4}
+                      placeholder={
+                        "Authorization: Bearer <token>\nX-Custom-Header: value"
+                      }
+                    />
+                  </Form.Item>
+                  <Form.Item label="超时(秒)" name="timeout">
+                    <Input type="number" placeholder="默认15" />
+                  </Form.Item>
+                  <Form.Item label="工具白名单(逗号分隔)" name="allowTools">
+                    <Input placeholder="留空表示全部，例如 time.now,time.convert" />
+                  </Form.Item>
+                </>
+              )}
+
+              {editMcpProtocol === "stdio" && (
+                <>
+                  <Form.Item
+                    label="命令"
+                    name="command"
+                    rules={[{ required: true, message: "请输入命令路径" }]}
+                  >
+                    <Input placeholder="如 ./mcp-server 或 /usr/local/bin/mcp-server" />
+                  </Form.Item>
+                  <Form.Item label="参数" name="args">
+                    <Input placeholder="空格分隔，例如 --flag value" />
+                  </Form.Item>
+                  <Form.Item
+                    label="环境变量"
+                    name="envText"
+                    tooltip="每行或用分号分隔，例如 FOO=bar;TOKEN=xxx"
+                  >
+                    <Input.TextArea
+                      rows={4}
+                      placeholder={"FOO=bar\nTOKEN=xxx"}
+                    />
+                  </Form.Item>
+                </>
+              )}
+            </>
+          ) : (
+            selectedTool && (
+              <>
+                {Object.entries(selectedTool.config || {}).map(
+                  ([key, value]) => (
+                    <Form.Item key={key} label={key} name={key}>
+                      {typeof value === "boolean" ? (
+                        <Switch />
+                      ) : typeof value === "number" ? (
+                        <Input type="number" />
+                      ) : key.toLowerCase().includes("password") ||
+                        key.toLowerCase().includes("secret") ||
+                        key.toLowerCase().includes("key") ? (
+                        <Input.Password />
+                      ) : (
+                        <Input />
+                      )}
+                    </Form.Item>
+                  ),
+                )}
+              </>
+            )
+          )}
         </Form>
       </Modal>
     </div>

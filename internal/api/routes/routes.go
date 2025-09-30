@@ -77,15 +77,22 @@ func SetupKnowledgeRoutes(rg *gin.RouterGroup, handler *handlers.KnowledgeHandle
 }
 
 func SetupToolRoutes(rg *gin.RouterGroup, handler *handlers.ToolHandler) {
-	tools := rg.Group("/tools")
-	tools.Use(middleware.Auth()) // 所有工具API都需要认证
-	{
-		// 工具管理
-		tools.GET("", handler.GetTools)
-		tools.GET("/:id", handler.GetTool)
-		tools.POST("", handler.CreateTool)
-		tools.PUT("/:id", handler.UpdateTool)
-		tools.DELETE("/:id", handler.DeleteTool)
+    tools := rg.Group("/tools")
+    tools.Use(middleware.Auth()) // 所有工具API都需要认证
+    {
+        // 工具类型与模板
+        tools.GET("/types", handler.GetToolTypes)
+        tools.GET("/types/:type/template", handler.GetToolTemplate)
+        tools.POST("/types/:type/validate", handler.ValidateToolTypeConfig)
+        tools.POST("/test", handler.TestToolConnection)
+
+        // 工具管理
+        tools.GET("", handler.GetTools)
+        tools.GET("/:id", handler.GetTool)
+        tools.POST("", handler.CreateTool)
+        tools.PUT("/:id", handler.UpdateTool)
+        tools.PUT("/:id/toggle", handler.ToggleTool)
+        tools.DELETE("/:id", handler.DeleteTool)
 		
 		// 工具执行
 		tools.POST("/:id/execute", handler.ExecuteTool)
