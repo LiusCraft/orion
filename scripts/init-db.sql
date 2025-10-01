@@ -8,7 +8,7 @@ INSERT INTO users (id, username, email, password_hash, display_name, role, statu
 (
     uuid_generate_v4(),
     'admin',
-    'admin@cdnagent.com',
+    'admin@orion.local',
     crypt('admin123', gen_salt('bf')),
     '系统管理员',
     'admin',
@@ -17,14 +17,14 @@ INSERT INTO users (id, username, email, password_hash, display_name, role, statu
 
 -- 创建默认知识分类
 INSERT INTO knowledge_categories (id, name, description, sort_order, status) VALUES
-(uuid_generate_v4(), 'CDN基础', 'CDN基础知识和概念', 1, 'active'),
-(uuid_generate_v4(), '故障排查', 'CDN故障诊断和解决方案', 2, 'active'),
-(uuid_generate_v4(), '性能优化', 'CDN性能调优相关文档', 3, 'active'),
-(uuid_generate_v4(), '最佳实践', 'CDN使用最佳实践', 4, 'active');
+(uuid_generate_v4(), '基础知识', '通用技术基础知识与概念', 1, 'active'),
+(uuid_generate_v4(), '故障排查', '常见问题与故障诊断方案', 2, 'active'),
+(uuid_generate_v4(), '性能优化', '性能调优与容量规划相关文档', 3, 'active'),
+(uuid_generate_v4(), '最佳实践', '通用最佳实践与操作手册', 4, 'active');
 
 -- 创建系统配置
 INSERT INTO system_configs (id, config_key, config_value, description, config_type) VALUES
-(uuid_generate_v4(), 'system.name', '{"value": "CDN AI Agent"}', '系统名称', 'system'),
+(uuid_generate_v4(), 'system.name', '{"value": "工程效能 AI 助手（Orion）"}', '系统名称', 'system'),
 (uuid_generate_v4(), 'system.version', '{"value": "1.0.0"}', '系统版本', 'system'),
 (uuid_generate_v4(), 'ai.max_tokens', '{"value": 4000}', 'AI最大token数', 'ai'),
 (uuid_generate_v4(), 'ai.temperature', '{"value": 0.7}', 'AI回复温度', 'ai');
