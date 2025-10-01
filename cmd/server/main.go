@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cdnagent/cdnagent/internal/api"
-	"github.com/cdnagent/cdnagent/internal/config"
-	"github.com/cdnagent/cdnagent/internal/database"
-	"github.com/cdnagent/cdnagent/internal/pkg/logger"
+	"github.com/liusCraft/orion/internal/api"
+	"github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/database"
+	"github.com/liusCraft/orion/internal/pkg/logger"
 	"github.com/joho/godotenv"
 )
 

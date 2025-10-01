@@ -3,8 +3,8 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cdnagent/cdnagent/internal/api/handlers"
-	"github.com/cdnagent/cdnagent/internal/api/middleware"
+	"github.com/liusCraft/orion/internal/api/handlers"
+	"github.com/liusCraft/orion/internal/api/middleware"
 )
 
 func SetupAuthRoutes(rg *gin.RouterGroup, handler *handlers.AuthHandler) {

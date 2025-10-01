@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/cdnagent/cdnagent/internal/pkg/jwt"
-	"github.com/cdnagent/cdnagent/internal/pkg/logger"
-	"github.com/cdnagent/cdnagent/pkg/errors"
+	"github.com/liusCraft/orion/internal/pkg/jwt"
+	"github.com/liusCraft/orion/internal/pkg/logger"
+	"github.com/liusCraft/orion/pkg/errors"
 )
 
 // Logger 日志中间件

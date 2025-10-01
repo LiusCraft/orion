@@ -14,12 +14,12 @@ import (
 
 	"strings"
 
-	"github.com/cdnagent/cdnagent/internal/config"
-	"github.com/cdnagent/cdnagent/internal/constants"
-	"github.com/cdnagent/cdnagent/internal/database/models"
-	"github.com/cdnagent/cdnagent/internal/services/ai"
-	toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
-	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+	"github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/constants"
+	"github.com/liusCraft/orion/internal/database/models"
+	"github.com/liusCraft/orion/internal/services/ai"
+	toolsSvc "github.com/liusCraft/orion/internal/services/tools"
+	pkgErrors "github.com/liusCraft/orion/pkg/errors"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 )

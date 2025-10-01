@@ -11,9 +11,9 @@ import (
     "github.com/cloudwego/eino/components/model"
     "github.com/cloudwego/eino/schema"
 
-    "github.com/cdnagent/cdnagent/internal/config"
-    dbmodels "github.com/cdnagent/cdnagent/internal/database/models"
-    "github.com/cdnagent/cdnagent/internal/constants"
+    "github.com/liusCraft/orion/internal/config"
+    dbmodels "github.com/liusCraft/orion/internal/database/models"
+    "github.com/liusCraft/orion/internal/constants"
 )
 
 // AIService AI服务接口

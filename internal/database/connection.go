@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/cdnagent/cdnagent/internal/config"
-	"github.com/cdnagent/cdnagent/internal/database/models"
+	"github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/database/models"
 )
 
 func Init(cfg *config.DatabaseConfig) (*gorm.DB, error) {

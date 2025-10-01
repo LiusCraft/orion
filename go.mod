@@ -1,4 +1,4 @@
-module github.com/cdnagent/cdnagent
+module github.com/liusCraft/orion
 
 go 1.24.0
 
