@@ -28,10 +28,10 @@ const AuthLayout: React.FC = () => {
               color: '#1890ff',
               margin: 0
             }}>
-              CDN AI Agent
+              工程效能 AI 助手
             </h1>
             <p style={{ color: '#666', marginTop: '8px' }}>
-              智能CDN运维助手
+              面向研发、运维、技术支持的效率助手
             </p>
           </div>
           <Outlet />

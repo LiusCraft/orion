@@ -1160,8 +1160,7 @@ const ToolsPage: React.FC = () => {
       <div style={{ marginBottom: "24px" }}>
         <Title level={2}>工具集成管理</Title>
         <Paragraph>
-          管理和配置与CDN AI
-          Agent集成的外部工具，包括监控系统、日志平台和API接口。
+          管理和配置与 AI 助手 集成的外部工具，包括监控系统、日志平台和 API 接口。
         </Paragraph>
       </div>
 

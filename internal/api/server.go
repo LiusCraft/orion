@@ -53,12 +53,12 @@ func NewServer(db *gorm.DB) (*Server, error) {
 
 func (s *Server) setupRoutes() {
 	// 健康检查
-	s.router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"message": "CDN AI Agent is running",
-		})
-	})
+    s.router.GET("/health", func(c *gin.Context) {
+        c.JSON(http.StatusOK, gin.H{
+            "status":  "ok",
+            "message": "AI Assistant is running",
+        })
+    })
 
 	// API路由组
 	api := s.router.Group("/api/v1")

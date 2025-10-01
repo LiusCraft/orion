@@ -62,8 +62,8 @@ const LoginPage: React.FC = () => {
     <div>
       <div style={{ marginBottom: '24px', textAlign: 'center' }}>
         <RobotOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
-        <h1 style={{ fontSize: '24px', margin: 0, color: '#1890ff' }}>CDN AI Agent</h1>
-        <p style={{ color: '#666', margin: '8px 0 0 0' }}>智能CDN运维助手</p>
+        <h1 style={{ fontSize: '24px', margin: 0, color: '#1890ff' }}>工程效能 AI 助手</h1>
+        <p style={{ color: '#666', margin: '8px 0 0 0' }}>面向研发、运维、技术支持的效率助手</p>
       </div>
 
       {isDemo && (
@@ -175,7 +175,7 @@ const LoginPage: React.FC = () => {
         <Card size="small">
           <div style={{ fontSize: '12px', color: '#666' }}>
             <p style={{ margin: '4px 0' }}>💡 <strong>功能特性</strong></p>
-            <p style={{ margin: '4px 0' }}>• 智能问答：CDN技术问题快速解答</p>
+            <p style={{ margin: '4px 0' }}>• 智能问答：研发/运维/技术支持问题快速解答</p>
             <p style={{ margin: '4px 0' }}>• 工具集成：监控、日志、API一体化</p>
             <p style={{ margin: '4px 0' }}>• 知识管理：文档库统一管理</p>
             <p style={{ margin: '4px 0' }}>• 实时协作：多人协同工作</p>

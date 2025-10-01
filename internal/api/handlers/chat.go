@@ -989,15 +989,15 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 
 	// 模拟AI处理和响应
 	// TODO: 这里应该集成实际的AI引擎
-	responses := []string{
-		"我理解您的问题",
-		"正在为您分析CDN相关信息",
-		"根据我的知识库，建议如下：",
-		"1. 检查CDN节点状态",
-		"2. 验证缓存配置",
-		"3. 监控访问日志",
-		"如需更详细的帮助，请提供具体的错误信息。",
-	}
+    responses := []string{
+        "我理解您的问题",
+        "正在为您分析相关信息",
+        "根据我的知识与工具结果，建议如下：",
+        "1. 检查服务与依赖状态",
+        "2. 验证关键配置是否生效",
+        "3. 查看监控与日志以定位异常",
+        "如需更详细的帮助，请提供具体的错误信息。",
+    }
 
 	fullContent := ""
 	for i, response := range responses {

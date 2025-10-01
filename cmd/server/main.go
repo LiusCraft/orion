@@ -17,9 +17,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// @title CDN AI Agent API
+// @title AI Assistant API
 // @version 1.0
-// @description CDN AI Agent RESTful API
+// @description Engineering Productivity AI Assistant RESTful API
 // @termsOfService https://example.com/terms/
 
 // @contact.name API Support
