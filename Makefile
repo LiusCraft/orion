@@ -2,7 +2,7 @@
 
 # 默认目标
 help:
-	@echo "CDN AI Agent - 开发命令"
+	@echo "工程效能 AI 助手 - 开发命令"
 	@echo ""
 	@echo "开发命令:"
 	@echo "  dev          启动开发环境"

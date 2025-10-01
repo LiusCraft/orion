@@ -440,7 +440,7 @@ const KnowledgePage: React.FC = () => {
       <div style={{ marginBottom: "24px" }}>
         <Title level={2}>知识库管理</Title>
         <Paragraph>
-          管理CDN相关的技术文档、教程和最佳实践，为AI助手提供准确的知识支撑。
+          管理技术文档、教程和最佳实践，为 AI 助手提供准确的知识支撑。
         </Paragraph>
       </div>
 

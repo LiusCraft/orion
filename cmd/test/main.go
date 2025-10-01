@@ -17,16 +17,16 @@ func main() {
 			"status":    "ok",
 			"timestamp": time.Now().Unix(),
 			"version":   "1.0.0",
-			"message":   "CDN AI Agent API is running",
+            "message":   "AI Assistant API is running",
 		})
 	})
 
 	// API信息端点
 	r.GET("/api/v1/info", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"name":        "CDN AI Agent",
+            "name":        "AI 助手",
 			"version":     "1.0.0",
-			"description": "智能CDN运维助手API",
+            "description": "面向研发/运维/技术支持的工程效能 AI 助手 API",
 		})
 	})
 

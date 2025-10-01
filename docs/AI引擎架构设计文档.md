@@ -33,7 +33,7 @@ type ChatTemplate interface {
 - **Graph**: 灵活的图编排（支持循环）
 - **Workflow**: 结构化数据映射的工作流
 
-## 2. CDN AI Agent架构设计
+## 2. 工程效能 AI 助手架构设计
 
 ### 2.1 整体架构
 ```

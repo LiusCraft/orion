@@ -128,7 +128,7 @@ const MainLayout: React.FC = () => {
               fontSize: collapsed ? "16px" : "20px",
             }}
           >
-            {collapsed ? "CDN" : "CDN AI Agent"}
+            {collapsed ? "AI" : "工程效能 AI 助手"}
           </h2>
         </div>
         <Menu
