@@ -7,11 +7,11 @@
    cp .env.example .env
    ```
 
-2. **配置Claude API**
-   编辑 `.env` 文件，设置你的Claude API信息：
+2. **配置 Claude/OpenAI API**
+   编辑 `.env` 文件，设置你的 LLM API 信息：
    ```env
-   CDNAGENT_AI_LLM_API_KEY=your-claude-api-key
-   CDNAGENT_AI_LLM_BASE_URL=https://your-third-party-api.com/v1
+   LLM_API_KEY=your-llm-api-key
+   LLM_BASE_URL=https://your-third-party-api.com/v1
    ```
 
 3. **启动服务器**
@@ -27,21 +27,21 @@
 
 ### OpenAI
 - 模型: gpt-3.5-turbo, gpt-4
-- 配置: 设置 `CDNAGENT_AI_LLM_PROVIDER=openai`
+- 配置: 设置 `LLM_PROVIDER=openai`
 
 ## 配置选项
 
 ### 基础配置
-- `CDNAGENT_AI_LLM_PROVIDER`: 模型提供商 (claude/openai)
-- `CDNAGENT_AI_LLM_MODEL`: 具体模型名称
-- `CDNAGENT_AI_LLM_API_KEY`: API密钥
-- `CDNAGENT_AI_LLM_BASE_URL`: API基础URL
+- `LLM_PROVIDER`: 模型提供商 (claude/openai)
+- `LLM_MODEL`: 具体模型名称
+- `LLM_API_KEY`: API密钥
+- `LLM_BASE_URL`: API基础URL
 
-### 高级配置
-- `CDNAGENT_AI_LLM_TEMPERATURE`: 温度参数 (0.0-1.0)
-- `CDNAGENT_AI_LLM_MAX_TOKENS`: 最大token数
-- `CDNAGENT_AI_LLM_TOP_K`: Top-K采样 (仅Claude)
-- `CDNAGENT_AI_LLM_TOP_P`: Top-P采样
+### 高级配置（通过配置文件）
+- `ai.llm.temperature`: 温度参数 (0.0-1.0)
+- `ai.llm.max_tokens`: 最大token数
+- `ai.llm.top_k`: Top-K采样 (仅Claude)
+- `ai.llm.top_p`: Top-P采样
 
 ## 测试AI功能
 
@@ -71,3 +71,27 @@ curl http://localhost:8080/health
 ## 自定义系统提示词
 
 可以通过配置文件 `config/config.json` 中的 `ai.llm.system_prompt` 字段自定义AI的系统提示词，使其更适合你的具体业务场景。
+
+## 占位符与默认值
+
+`config/config.json` 支持使用环境变量占位符：
+
+- 基本占位符：`${VAR}` —— 使用 `.env` 或系统环境中的 `VAR`
+- 带默认值：`${VAR:-default}` —— 当变量未设置或为空时使用 `default`
+
+示例：
+
+```json
+{
+  "database": {
+    "host": "${DB_HOST:-localhost}",
+    "port": "${DB_PORT:-5432}",
+    "user": "${DB_USER:-postgres}"
+  },
+  "jwt": {
+    "secret": "${JWT_SECRET:-your-jwt-secret-here}"
+  }
+}
+```
+
+注意：项目会在启动时自动加载 `.env`（通过 `godotenv`），然后解析并替换配置文件中的占位符。
