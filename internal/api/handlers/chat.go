@@ -808,12 +808,12 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 
 	// 在有工具调用时，追加一条系统指令，要求总结工具输出给出清晰结论
 	if toolCalled {
-		summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
-			"- 先简要概括关键结果/指标；\n" +
-			"- 给出具体解决步骤或下一步行动；\n" +
-			"- 如工具失败或异常，解释原因与可行的补救办法；\n" +
-			"- 回答力求简洁、重点明确。\n" +
-			"若用户问题与CDN无关，也请尽力作答，不要拒绝。"
+            summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
+                "- 先简要概括关键结果/指标；\n" +
+                "- 给出具体解决步骤或下一步行动；\n" +
+                "- 如工具失败或异常，解释原因与可行的补救办法；\n" +
+                "- 回答力求简洁、重点明确。\n" +
+                "若问题与当前场景不直接相关，也请尽力作答并给出可执行建议。"
 		planEino = append(planEino, &schema.Message{Role: schema.System, Content: summarizeHint})
 	}
 

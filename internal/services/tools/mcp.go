@@ -45,7 +45,7 @@ func TestMCPConnection(ctx context.Context, cfg map[string]interface{}) (int, er
     initReq := mcp.InitializeRequest{}
     initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
     initReq.Params.ClientInfo = mcp.Implementation{
-        Name:    "cdnagent",
+        Name:    "orion",
         Version: "1.0.0",
     }
     if _, err := cli.Initialize(ctx, initReq); err != nil {
@@ -71,7 +71,7 @@ func BuildMCPTools(ctx context.Context, cfg map[string]interface{}, prefixName s
 
     initReq := mcp.InitializeRequest{}
     initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-    initReq.Params.ClientInfo = mcp.Implementation{Name: "cdnagent", Version: "1.0.0"}
+    initReq.Params.ClientInfo = mcp.Implementation{Name: "orion", Version: "1.0.0"}
     if _, err := cli.Initialize(ctx, initReq); err != nil {
         _ = closeFn()
         return nil, func() error { return nil }, fmt.Errorf("mcp initialize failed: %w", err)
@@ -116,7 +116,7 @@ func FetchMCPServerInfo(ctx context.Context, cfg map[string]interface{}) (map[st
 
     initReq := mcp.InitializeRequest{}
     initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-    initReq.Params.ClientInfo = mcp.Implementation{Name: "cdnagent", Version: "1.0.0"}
+    initReq.Params.ClientInfo = mcp.Implementation{Name: "orion", Version: "1.0.0"}
     initRes, err := cli.Initialize(ctx, initReq)
     if err != nil {
         return nil, nil, fmt.Errorf("mcp initialize failed: %w", err)

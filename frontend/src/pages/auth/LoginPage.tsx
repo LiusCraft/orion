@@ -18,10 +18,10 @@ const LoginPage: React.FC = () => {
     const demoUser = {
       id: role === 'admin' ? 'admin-001' : 'user-001',
       username: role === 'admin' ? 'admin' : 'demo_user',
-      email: role === 'admin' ? 'admin@cdnagent.com' : 'user@cdnagent.com',
+      email: role === 'admin' ? 'admin@orion.local' : 'user@orion.local',
       displayName: role === 'admin' ? '系统管理员' : '演示用户',
       role: role,
-      department: 'CDN技术部',
+      department: '工程效能部',
       status: 'active',
       lastLoginAt: new Date().toISOString()
     }

@@ -3,7 +3,8 @@
 ## 文档信息
 - **创建日期**: 2025-09-29
 - **API版本**: v1
-- **Base URL**: `https://api.cdnagent.com/api/v1`
+ - **Base URL**: `https://api.orion.example.com/api/v1`
+> 说明：以下示例以 CDN 业务为演示场景，实际可替换为任意业务域（监控、日志、CI/CD 等）。
 - **认证方式**: JWT Bearer Token
 
 ## 1. 通用规范
@@ -137,7 +138,7 @@ Authorization: Bearer {accessToken}
     "data": [
       {
         "id": "uuid",
-        "title": "CDN配置问题",
+        "title": "配置问题示例",
         "lastMessageAt": "2025-09-29T10:30:00Z",
         "totalMessages": 15,
         "status": "active",
@@ -302,14 +303,14 @@ Authorization: Bearer {accessToken}
   "data": [
     {
       "id": "uuid",
-      "name": "CDN基础",
-      "description": "CDN基础概念和原理",
+      "name": "基础知识",
+      "description": "常见概念和原理",
       "parentId": null,
       "children": [
         {
           "id": "uuid",
           "name": "缓存机制",
-          "description": "CDN缓存工作原理",
+          "description": "缓存工作原理（示例：以 CDN 业务为例）",
           "parentId": "parent_uuid",
           "children": []
         }
@@ -339,11 +340,11 @@ Authorization: Bearer {accessToken}
   "code": 200,
   "data": {
     "id": "uuid",
-    "title": "CDN缓存配置指南",
-    "content": "# CDN缓存配置指南\n\n...",
+    "title": "缓存配置指南（示例）",
+    "content": "# 缓存配置指南（以 CDN 业务为例）\n\n...",
     "contentType": "markdown",
-    "summary": "本文档介绍了CDN缓存的配置方法...",
-    "tags": ["CDN", "缓存", "配置"],
+    "summary": "本文档介绍了缓存配置方法（业务可替换）...",
+    "tags": ["示例", "缓存", "配置"],
     "category": {
       "id": "uuid",
       "name": "配置管理"
