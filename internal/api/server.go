@@ -6,11 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/api/handlers"
-	"github.com/cdnagent/cdnagent/internal/api/middleware"
-	"github.com/cdnagent/cdnagent/internal/api/routes"
-	"github.com/cdnagent/cdnagent/internal/config"
-	"github.com/cdnagent/cdnagent/internal/services/ai"
+	"github.com/liusCraft/orion/internal/api/handlers"
+	"github.com/liusCraft/orion/internal/api/middleware"
+	"github.com/liusCraft/orion/internal/api/routes"
+	"github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/services/ai"
 )
 
 type Server struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cdnagent/cdnagent/internal/config"
+	"github.com/liusCraft/orion/internal/config"
 )
 
 func TestService(t *testing.T) {

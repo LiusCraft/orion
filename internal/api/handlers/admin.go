@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/database/models"
-	pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
+	"github.com/liusCraft/orion/internal/database/models"
+	pkgErrors "github.com/liusCraft/orion/pkg/errors"
 )
 
 type AdminHandler struct {

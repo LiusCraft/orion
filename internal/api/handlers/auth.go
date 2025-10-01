@@ -9,9 +9,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
-	"github.com/cdnagent/cdnagent/internal/database/models"
-	"github.com/cdnagent/cdnagent/internal/pkg/jwt"
-	"github.com/cdnagent/cdnagent/pkg/errors"
+	"github.com/liusCraft/orion/internal/database/models"
+	"github.com/liusCraft/orion/internal/pkg/jwt"
+	"github.com/liusCraft/orion/pkg/errors"
 )
 
 type AuthHandler struct {

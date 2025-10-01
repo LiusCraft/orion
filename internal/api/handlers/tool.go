@@ -10,9 +10,9 @@ import (
     "github.com/google/uuid"
     "gorm.io/gorm"
 
-    "github.com/cdnagent/cdnagent/internal/database/models"
-    pkgErrors "github.com/cdnagent/cdnagent/pkg/errors"
-    toolsSvc "github.com/cdnagent/cdnagent/internal/services/tools"
+    "github.com/liusCraft/orion/internal/database/models"
+    pkgErrors "github.com/liusCraft/orion/pkg/errors"
+    toolsSvc "github.com/liusCraft/orion/internal/services/tools"
 )
 
 type ToolHandler struct {

@@ -1,13 +1,13 @@
 package jwt
 
 import (
-	"fmt"
-	"time"
+    "fmt"
+    "time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
+    "github.com/golang-jwt/jwt/v5"
+    "github.com/google/uuid"
 
-	"github.com/cdnagent/cdnagent/internal/config"
+    "github.com/liusCraft/orion/internal/config"
 )
 
 type Claims struct {
