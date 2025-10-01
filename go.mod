@@ -1,8 +1,6 @@
 module github.com/cdnagent/cdnagent
 
-go 1.23.0
-
-toolchain go1.24.4
+go 1.24.0
 
 require (
 	github.com/cloudwego/eino v0.5.3

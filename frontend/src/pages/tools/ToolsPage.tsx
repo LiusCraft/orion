@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Card,
   Button,
@@ -43,6 +43,23 @@ import type {
   UpdateToolRequest,
 } from "../../types";
 
+// 辅助类型与工具
+interface McpToolInfo {
+  name?: string;
+  description?: string;
+  inputSchema?: unknown;
+}
+
+interface TestPreview {
+  responseTime?: number;
+  toolCount?: number;
+  server?: Record<string, unknown>;
+  tools?: McpToolInfo[];
+}
+
+const isRecord = (val: unknown): val is Record<string, unknown> =>
+  typeof val === "object" && val !== null;
+
 // 工具配置 Schema 类型
 interface ToolConfigSchema {
   title?: string;
@@ -72,12 +89,8 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
   const [form] = Form.useForm();
   const [selectedType, setSelectedType] = useState<string>("");
   const [mcpProtocol, setMcpProtocol] = useState<string>("http_streamable");
-  const [createTestPreview, setCreateTestPreview] = useState<{
-    responseTime?: number;
-    toolCount?: number;
-    server?: Record<string, any>;
-    tools?: Array<Record<string, any>>;
-  } | null>(null);
+  const [createTestPreview, setCreateTestPreview] =
+    useState<TestPreview | null>(null);
   const queryClient = useQueryClient();
 
   const { data: toolTypes } = useQuery({
@@ -115,15 +128,30 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
       toolType: string;
       config: Record<string, unknown>;
     }) => toolService.testTool({ toolType, config }),
-    onSuccess: (res: any) => {
+    onSuccess: (res: {
+      success: boolean;
+      message: string;
+      responseTime?: number;
+      details?: Record<string, unknown>;
+    }) => {
       if (res.success) {
         message.success(res.message || "测试成功");
-        const details = res.details || {};
+        const details = (res.details || {}) as Record<string, unknown>;
+        const toolCount =
+          typeof details["toolCount"] === "number"
+            ? (details["toolCount"] as number)
+            : undefined;
+        const server = isRecord(details["server"])
+          ? (details["server"] as Record<string, unknown>)
+          : undefined;
+        const tools = Array.isArray(details["tools"])
+          ? (details["tools"] as McpToolInfo[])
+          : undefined;
         setCreateTestPreview({
           responseTime: res.responseTime,
-          toolCount: details.toolCount,
-          server: details.server,
-          tools: details.tools,
+          toolCount,
+          server,
+          tools,
         });
       } else {
         message.error(res.message || "测试失败");
@@ -139,30 +167,31 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
   const handleSubmit = (
     values: CreateToolRequest & Record<string, unknown>,
   ) => {
-    const { name, displayName, description, toolType, ...rest } =
-      values as Record<string, any>;
+    const { name, displayName, description, toolType, ...restUnknown } =
+      values as Record<string, unknown>;
 
     // 特殊处理 mcp：根据协议整理配置
-    let config: Record<string, any> = { ...rest };
+    let config: Record<string, unknown> = { ...restUnknown };
     if (toolType === "mcp") {
-      const protocol = rest.protocol as string;
+      const r = restUnknown as Record<string, unknown>;
+      const protocol = String(r["protocol"] ?? "");
       config = { protocol };
       if (protocol === "http_streamable" || protocol === "sse") {
-        if (rest.endpoint) config.endpoint = rest.endpoint;
-        if (rest.timeout) config.timeout = Number(rest.timeout);
-        if (rest.allowTools) config.allowTools = rest.allowTools as string;
-        if (rest.headersText) config.headers = rest.headersText as string; // 多行header
+        if (r["endpoint"]) config.endpoint = r["endpoint"];
+        if (r["timeout"]) config.timeout = Number(r["timeout"]);
+        if (r["allowTools"]) config.allowTools = r["allowTools"] as string;
+        if (r["headersText"]) config.headers = r["headersText"] as string; // 多行header
       } else if (protocol === "stdio") {
-        if (rest.command) config.command = rest.command;
-        if (rest.args) config.args = rest.args as string; // 空格分隔
-        if (rest.envText) config.env = rest.envText as string; // 多行或分号分隔
+        if (r["command"]) config.command = r["command"];
+        if (r["args"]) config.args = r["args"] as string; // 空格分隔
+        if (r["envText"]) config.env = r["envText"] as string; // 多行或分号分隔
       }
     }
     createToolMutation.mutate({
-      name,
-      displayName,
-      description,
-      toolType,
+      name: String(name ?? ""),
+      displayName: String(displayName ?? ""),
+      description: String(description ?? ""),
+      toolType: String(toolType ?? ""),
       config,
       enabled: true,
     });
@@ -182,36 +211,34 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
   };
 
   const handleTestInCreate = () => {
-    const v = form.getFieldsValue();
+    const v = form.getFieldsValue() as Record<string, unknown>;
     const toolType = v.toolType as string;
     if (!toolType) {
       message.warning("请先选择工具类型");
       return;
     }
-    let config: Record<string, any> = {};
+    let config: Record<string, unknown> = {};
     if (toolType === "mcp") {
       const protocol = v.protocol as string;
       config.protocol = protocol;
       if (protocol === "http_streamable" || protocol === "sse") {
-        if (v.endpoint) config.endpoint = v.endpoint;
-        if (v.timeout) config.timeout = Number(v.timeout);
+        if (v.endpoint) config.endpoint = v.endpoint as string;
+        if (v.timeout) config.timeout = Number(v.timeout as number);
         if (v.allowTools) config.allowTools = v.allowTools as string;
         if (v.headersText) config.headers = v.headersText as string;
         else config.headers = "";
       } else if (protocol === "stdio") {
-        if (v.command) config.command = v.command;
+        if (v.command) config.command = v.command as string;
         if (v.args) config.args = v.args as string;
         if (v.envText) config.env = v.envText as string;
         else config.env = "";
       }
     } else {
-      const {
-        toolType: _tt,
-        name: _n,
-        displayName: _dn,
-        description: _ds,
-        ...rest
-      } = v;
+      const rest: Record<string, unknown> = { ...v };
+      delete rest["toolType"];
+      delete rest["name"];
+      delete rest["displayName"];
+      delete rest["description"];
       config = rest;
     }
     testCreateMutation.mutate({ toolType, config });
@@ -388,7 +415,9 @@ const CreateToolModal: React.FC<CreateToolModalProps> = ({
                       >
                         {t.inputSchema ? (
                           <>
-                            <div style={{ marginBottom: 6 }}>输入参数(JSONSchema):</div>
+                            <div style={{ marginBottom: 6 }}>
+                              输入参数(JSONSchema):
+                            </div>
                             <pre
                               style={{
                                 background: "#f7f7f7",
@@ -462,12 +491,9 @@ const ToolsPage: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [editMcpProtocol, setEditMcpProtocol] =
     useState<string>("http_streamable");
-  const [editTestPreview, setEditTestPreview] = useState<{
-    responseTime?: number;
-    toolCount?: number;
-    server?: Record<string, any>;
-    tools?: Array<Record<string, any>>;
-  } | null>(null);
+  const [editTestPreview, setEditTestPreview] = useState<TestPreview | null>(
+    null,
+  );
   const [form] = Form.useForm();
 
   // 获取工具列表
@@ -552,15 +578,30 @@ const ToolsPage: React.FC = () => {
       toolType: string;
       config: Record<string, unknown>;
     }) => toolService.testTool({ toolType, config }),
-    onSuccess: (res: any) => {
+    onSuccess: (res: {
+      success: boolean;
+      message: string;
+      responseTime?: number;
+      details?: Record<string, unknown>;
+    }) => {
       if (res.success) {
         message.success(res.message || "测试成功");
-        const details = res.details || {};
+        const details = (res.details || {}) as Record<string, unknown>;
+        const toolCount =
+          typeof details["toolCount"] === "number"
+            ? (details["toolCount"] as number)
+            : undefined;
+        const server = isRecord(details["server"])
+          ? (details["server"] as Record<string, unknown>)
+          : undefined;
+        const tools = Array.isArray(details["tools"])
+          ? (details["tools"] as McpToolInfo[])
+          : undefined;
         setEditTestPreview({
           responseTime: res.responseTime,
-          toolCount: details.toolCount,
-          server: details.server,
-          tools: details.tools,
+          toolCount,
+          server,
+          tools,
         });
       } else {
         message.error(res.message || "测试失败");
@@ -631,12 +672,12 @@ const ToolsPage: React.FC = () => {
     setSelectedTool(tool);
     setEditTestPreview(null);
     // 预填表单
-    const base: Record<string, any> = {
+    const base: Record<string, unknown> = {
       displayName: tool.displayName,
       description: tool.description,
     };
     if (tool.toolType === "mcp") {
-      const cfg = (tool.config || {}) as Record<string, any>;
+      const cfg = (tool.config || {}) as Record<string, unknown>;
       const proto = (cfg.protocol as string) || "http_streamable";
       setEditMcpProtocol(proto);
       base.protocol = proto;
@@ -668,34 +709,36 @@ const ToolsPage: React.FC = () => {
   const handleSaveConfig = () => {
     form.validateFields().then((values) => {
       if (selectedTool) {
-        const v = values as Record<string, any>;
+        const v = values as Record<string, unknown>;
         const displayName = v.displayName;
         const description = v.description;
-        let config: Record<string, any> = {};
+        let config: Record<string, unknown> = {};
         if (selectedTool.toolType === "mcp") {
           const protocol = v.protocol as string;
           config.protocol = protocol;
           if (protocol === "http_streamable" || protocol === "sse") {
-            if (v.endpoint) config.endpoint = v.endpoint;
-            if (v.timeout) config.timeout = Number(v.timeout);
+            if (v.endpoint) config.endpoint = v.endpoint as string;
+            if (v.timeout) config.timeout = Number(v.timeout as number);
             if (v.allowTools) config.allowTools = v.allowTools as string;
             if (v.headersText) config.headers = v.headersText as string;
             else config.headers = "";
           } else if (protocol === "stdio") {
-            if (v.command) config.command = v.command;
+            if (v.command) config.command = v.command as string;
             if (v.args) config.args = v.args as string;
             if (v.envText) config.env = v.envText as string;
             else config.env = "";
           }
         } else {
-          const { displayName: _dn, description: _ds, ...rest } = v;
+          const rest: Record<string, unknown> = { ...v };
+          delete rest["displayName"];
+          delete rest["description"];
           config = rest;
         }
         updateToolMutation.mutate({
           toolId: selectedTool.id,
           data: {
-            displayName,
-            description,
+            displayName: displayName as string,
+            description: description as string,
             config,
           },
         });
@@ -709,25 +752,27 @@ const ToolsPage: React.FC = () => {
   // 在编辑弹窗内“测试连接”——基于当前表单值构造config后调用后端 /tools/test
   const handleTestConfigInModal = () => {
     if (!selectedTool) return;
-    const v = form.getFieldsValue();
-    let config: Record<string, any> = {};
+    const v = form.getFieldsValue() as Record<string, unknown>;
+    let config: Record<string, unknown> = {};
     if (selectedTool.toolType === "mcp") {
       const protocol = v.protocol as string;
       config.protocol = protocol;
       if (protocol === "http_streamable" || protocol === "sse") {
-        if (v.endpoint) config.endpoint = v.endpoint;
-        if (v.timeout) config.timeout = Number(v.timeout);
+        if (v.endpoint) config.endpoint = v.endpoint as string;
+        if (v.timeout) config.timeout = Number(v.timeout as number);
         if (v.allowTools) config.allowTools = v.allowTools as string;
         if (v.headersText) config.headers = v.headersText as string;
         else config.headers = "";
       } else if (protocol === "stdio") {
-        if (v.command) config.command = v.command;
+        if (v.command) config.command = v.command as string;
         if (v.args) config.args = v.args as string;
         if (v.envText) config.env = v.envText as string;
         else config.env = "";
       }
     } else {
-      const { displayName: _dn, description: _ds, ...rest } = v;
+      const rest: Record<string, unknown> = { ...v };
+      delete rest["displayName"];
+      delete rest["description"];
       config = rest;
     }
     testInEditMutation.mutate({ toolType: selectedTool.toolType, config });
@@ -786,14 +831,15 @@ const ToolsPage: React.FC = () => {
         <Descriptions.Item label="工具类型">
           <Tag>{tool.toolType}</Tag>
         </Descriptions.Item>
-        {tool.toolType === "mcp" && (
-          <Descriptions.Item label="支持能力">
-            {Array.isArray((tool.config as any)?.mcp_tools)
-              ? ((tool.config as any).mcp_tools as any[]).length
-              : 0}
-            项
-          </Descriptions.Item>
-        )}
+        {tool.toolType === "mcp" &&
+          (() => {
+            const cfg = (tool.config || {}) as Record<string, unknown>;
+            const mcpToolsRaw = (cfg as { mcp_tools?: unknown }).mcp_tools;
+            const count = Array.isArray(mcpToolsRaw) ? mcpToolsRaw.length : 0;
+            return (
+              <Descriptions.Item label="支持能力">{count} 项</Descriptions.Item>
+            );
+          })()}
         {tool.lastExecutedAt && (
           <Descriptions.Item label="最后使用">
             {new Date(tool.lastExecutedAt).toLocaleString("zh-CN")}
@@ -807,57 +853,75 @@ const ToolsPage: React.FC = () => {
       </Descriptions>
 
       {/* MCP 能力预览（只读，默认折叠，不撑外部容器；展开时内部预设最大高度滚动） */}
-      {tool.toolType === "mcp" && (
-        <>
-          {(tool.config as any)?.mcp_server && (
-            <Collapse size="small" destroyInactivePanel style={{ marginTop: 8 }}>
-              <Collapse.Panel header="MCP Server 信息" key="server-info">
-                <pre
-                  style={{
-                    background: "#f7f7f7",
-                    padding: 8,
-                    borderRadius: 6,
-                    maxHeight: 220,
-                    overflow: "auto",
-                  }}
+      {tool.toolType === "mcp" &&
+        (() => {
+          const cfg = (tool.config || {}) as Record<string, unknown>;
+          const mcpServer = (cfg as { mcp_server?: unknown }).mcp_server;
+          const mcpToolsRaw = (cfg as { mcp_tools?: unknown }).mcp_tools;
+          const mcpTools: McpToolInfo[] = Array.isArray(mcpToolsRaw)
+            ? (mcpToolsRaw as McpToolInfo[])
+            : [];
+          return (
+            <>
+              {isRecord(mcpServer) && (
+                <Collapse
+                  size="small"
+                  destroyInactivePanel
+                  style={{ marginTop: 8 }}
                 >
-                  {JSON.stringify((tool.config as any).mcp_server, null, 2)}
-                </pre>
-              </Collapse.Panel>
-            </Collapse>
-          )}
-          {Array.isArray((tool.config as any)?.mcp_tools) &&
-            ((tool.config as any).mcp_tools as any[]).length > 0 && (
-              <Collapse size="small" destroyInactivePanel style={{ marginTop: 8 }}>
-                {((tool.config as any).mcp_tools as any[]).map((t: any, idx: number) => (
-                  <Collapse.Panel
-                    header={`${t.name || "(unknown)"} - ${t.description || ""}`}
-                    key={`cap-${idx}`}
-                  >
-                    {t.inputSchema ? (
-                      <>
-                        <div style={{ marginBottom: 6 }}>输入参数(JSONSchema):</div>
-                        <pre
-                          style={{
-                            background: "#f7f7f7",
-                            padding: 8,
-                            borderRadius: 6,
-                            maxHeight: 220,
-                            overflow: "auto",
-                          }}
-                        >
-                          {JSON.stringify(t.inputSchema, null, 2)}
-                        </pre>
-                      </>
-                    ) : (
-                      <span style={{ color: "#999" }}>无参数定义</span>
-                    )}
+                  <Collapse.Panel header="MCP Server 信息" key="server-info">
+                    <pre
+                      style={{
+                        background: "#f7f7f7",
+                        padding: 8,
+                        borderRadius: 6,
+                        maxHeight: 220,
+                        overflow: "auto",
+                      }}
+                    >
+                      {JSON.stringify(mcpServer, null, 2)}
+                    </pre>
                   </Collapse.Panel>
-                ))}
-              </Collapse>
-            )}
-        </>
-      )}
+                </Collapse>
+              )}
+              {mcpTools.length > 0 && (
+                <Collapse
+                  size="small"
+                  destroyInactivePanel
+                  style={{ marginTop: 8 }}
+                >
+                  {mcpTools.map((t, idx: number) => (
+                    <Collapse.Panel
+                      header={`${t.name || "(unknown)"} - ${t.description || ""}`}
+                      key={`cap-${idx}`}
+                    >
+                      {t.inputSchema ? (
+                        <>
+                          <div style={{ marginBottom: 6 }}>
+                            输入参数(JSONSchema):
+                          </div>
+                          <pre
+                            style={{
+                              background: "#f7f7f7",
+                              padding: 8,
+                              borderRadius: 6,
+                              maxHeight: 220,
+                              overflow: "auto",
+                            }}
+                          >
+                            {JSON.stringify(t.inputSchema, null, 2)}
+                          </pre>
+                        </>
+                      ) : (
+                        <span style={{ color: "#999" }}>无参数定义</span>
+                      )}
+                    </Collapse.Panel>
+                  ))}
+                </Collapse>
+              )}
+            </>
+          );
+        })()}
 
       <Divider style={{ margin: "12px 0" }} />
 

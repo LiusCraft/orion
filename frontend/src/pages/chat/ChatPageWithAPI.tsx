@@ -42,10 +42,17 @@ import MarkdownRenderer from "../../components/common/MarkdownRenderer";
 const { TextArea } = Input;
 const { Text } = Typography;
 
-interface ToolCall {
-  name: string;
-  description: string;
-  result?: string;
+// 工具调用元数据类型（用于历史消息中的工具结果渲染）
+interface ToolMetadataItem {
+  toolId?: string;
+  createdAt?: string;
+  displayName?: string;
+  name?: string;
+  toolType?: string;
+  status?: "success" | "failed" | string;
+  executionTimeMs?: number;
+  inputParams?: Record<string, unknown>;
+  outputResult?: Record<string, unknown>;
 }
 
 interface Reference {
@@ -418,7 +425,9 @@ const ChatPage: React.FC = () => {
           const eventData = JSON.parse(event.data);
           const n = eventData?.data?.toolCount ?? 0;
           setPlanningNotes((prev) => [...prev, `工具加载完成：${n} 个可用`]);
-        } catch {}
+        } catch (err) {
+          console.error("解析tools_loading_finished事件失败:", err);
+        }
       },
     );
 
@@ -429,7 +438,9 @@ const ChatPage: React.FC = () => {
           const eventData = JSON.parse(event.data);
           const iter = eventData?.data?.iteration ?? 0;
           setPlanningNotes((prev) => [...prev, `第 ${iter} 轮规划…`]);
-        } catch {}
+        } catch (err) {
+          console.error("解析model_step_started事件失败:", err);
+        }
       },
     );
 
@@ -443,7 +454,9 @@ const ChatPage: React.FC = () => {
             ? "产生工具调用"
             : "未产生工具调用";
           setPlanningNotes((prev) => [...prev, `第 ${iter} 轮完成：${has}`]);
-        } catch {}
+        } catch (err) {
+          console.error("解析model_step_finished事件失败:", err);
+        }
       },
     );
 
@@ -455,7 +468,9 @@ const ChatPage: React.FC = () => {
           ...prev,
           skipped ? "已跳过规划" : "规划完成",
         ]);
-      } catch {}
+      } catch (err) {
+        console.error("解析planning_finished事件失败:", err);
+      }
       setPlanningActive(false);
     });
   };
@@ -653,7 +668,7 @@ const ChatPage: React.FC = () => {
       queryClient.invalidateQueries({
         queryKey: ["conversation", currentConversationId],
       });
-    } catch (e) {
+    } catch {
       message.error("更新标题失败");
     } finally {
       setIsEditingTitle(false);
@@ -773,8 +788,9 @@ const ChatPage: React.FC = () => {
                     setOpenToolPanels((prev) => ({ ...prev, [message.id]: k }));
                   }}
                 >
-                  {(message.metadata.tools as any[]).map(
-                    (t: any, idx: number) => {
+                  {Array.isArray(message.metadata.tools)
+                    ? (message.metadata.tools as unknown as ToolMetadataItem[]).map(
+                        (t: ToolMetadataItem, idx: number) => {
                       const panelKey = `${t.toolId || ""}:${t.createdAt || idx}`;
                       return (
                         <Collapse.Panel
@@ -838,8 +854,9 @@ const ChatPage: React.FC = () => {
                           </div>
                         </Collapse.Panel>
                       );
-                    },
-                  )}
+                        },
+                      )
+                    : null}
                 </Collapse>
               </div>
             ) : null}

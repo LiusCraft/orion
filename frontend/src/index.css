@@ -1,16 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Fix: Ensure Ant Collapse hidden content is actually hidden in our stack */
 .ant-collapse .ant-collapse-content-hidden,
 .ant-collapse .ant-collapse-panel-inactive.ant-collapse-content-hidden {
-  display: none !important;
+    display: none !important;
 }
 
 .ant-collapse .ant-collapse-panel-inactive .ant-collapse-body {
-  height: 0 !important;
-  overflow: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }
 
 body {
