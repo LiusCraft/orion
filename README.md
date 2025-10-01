@@ -34,7 +34,13 @@ git clone <repository-url>
 cd cdnagent
 ```
 
-2. **启动开发环境**
+2. **准备环境变量**
+```bash
+cp .env.example .env
+# 按需编辑 .env，填入 DB_/REDIS_/LLM_/JWT_ 等变量
+```
+
+3. **启动开发环境**
 ```bash
 make dev
 ```
@@ -45,7 +51,7 @@ make dev
 - PostgreSQL数据库: localhost:5432
 - Redis缓存: localhost:6379
 
-3. **默认登录账户**
+4. **默认登录账户**
 - 用户名: `admin`
 - 密码: `admin123`
 
@@ -169,11 +175,41 @@ make docker-up
 
 ### 生产环境配置
 
-1. 修改 `internal/config/config.json` 配置文件
-2. 设置环境变量
+1. 修改 `config/config.json` 配置文件
+2. 使用 `.env` 设置环境变量（或通过容器环境变量传入）
 3. 配置数据库连接
 4. 配置Redis连接
 5. 设置JWT密钥
+
+### 环境变量与占位符
+
+- 配置文件支持占位符：`${VAR}` 或 `${VAR:-default}`（未设置或为空时使用默认值）
+- 推荐在 `config/config.json` 中为关键项写入占位符；在 `.env` 中提供实际值
+
+示例（节选）：
+
+```json
+{
+  "database": {
+    "host": "${DB_HOST:-localhost}",
+    "port": "${DB_PORT:-5432}",
+    "user": "${DB_USER:-postgres}",
+    "password": "${DB_PASSWORD}",
+    "dbname": "${DB_NAME:-cdnagent}"
+  },
+  "ai": {
+    "llm": {
+      "provider": "${LLM_PROVIDER:-claude}",
+      "model": "${LLM_MODEL:-claude-3-sonnet-20240229}",
+      "api_key": "${LLM_API_KEY}",
+      "base_url": "${LLM_BASE_URL}"
+    }
+  },
+  "jwt": { "secret": "${JWT_SECRET:-your-jwt-secret-here}" }
+}
+```
+
+在容器环境中，`docker-compose.yml` 已使用 `DB_*`/`REDIS_*`/`JWT_*` 变量名对齐。
 
 ## 故障排查
 

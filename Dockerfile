@@ -35,7 +35,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # 复制配置文件
-COPY --from=builder /app/internal/config/config.json ./config/
+COPY --from=builder /app/config/config.json ./config/
 
 # 更改文件所有权
 RUN chown -R cdnagent:cdnagent /app

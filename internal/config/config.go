@@ -1,10 +1,12 @@
 package config
 
 import (
-	"fmt"
-	"os"
+    "fmt"
+    "os"
+    "reflect"
+    "regexp"
 
-	"github.com/spf13/viper"
+    "github.com/spf13/viper"
 )
 
 type Config struct {
@@ -157,11 +159,14 @@ func Load() error {
 		}
 	}
 
-	// 解析配置
-	config := &Config{}
-	if err := viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("解析配置失败: %w", err)
-	}
+    // 解析配置
+    config := &Config{}
+    if err := viper.Unmarshal(config); err != nil {
+        return fmt.Errorf("解析配置失败: %w", err)
+    }
+
+    // 展开字符串中的环境变量占位符，如 ${VAR}
+    expandEnvPlaceholders(config)
 
 	// 从环境变量覆盖敏感信息
 	if dbPassword := os.Getenv("CDNAGENT_DATABASE_PASSWORD"); dbPassword != "" {
@@ -174,8 +179,67 @@ func Load() error {
 		config.JWT.Secret = jwtSecret
 	}
 
-	GlobalConfig = config
-	return nil
+    GlobalConfig = config
+    return nil
+}
+
+// 支持占位符格式：${VAR} 或 ${VAR:-default}
+var envPlaceholderRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}`)
+
+func expandEnvPlaceholders(cfg *Config) {
+    if cfg == nil {
+        return
+    }
+    replacePlaceholders(reflect.ValueOf(cfg))
+}
+
+func replacePlaceholders(v reflect.Value) {
+    if !v.IsValid() {
+        return
+    }
+    switch v.Kind() {
+    case reflect.Ptr:
+        if !v.IsNil() {
+            replacePlaceholders(v.Elem())
+        }
+    case reflect.Struct:
+        for i := 0; i < v.NumField(); i++ {
+            f := v.Field(i)
+            replacePlaceholders(f)
+        }
+    case reflect.Slice, reflect.Array:
+        for i := 0; i < v.Len(); i++ {
+            replacePlaceholders(v.Index(i))
+        }
+    case reflect.Map:
+        for _, key := range v.MapKeys() {
+            val := v.MapIndex(key)
+            replacePlaceholders(val)
+        }
+    case reflect.String:
+        if v.CanSet() {
+            s := v.String()
+            replaced := envPlaceholderRe.ReplaceAllStringFunc(s, func(m string) string {
+                sub := envPlaceholderRe.FindStringSubmatch(m)
+                if len(sub) >= 2 {
+                    name := sub[1]
+                    def := ""
+                    if len(sub) >= 3 {
+                        def = sub[2]
+                    }
+                    val := os.Getenv(name)
+                    if val == "" {
+                        val = def
+                    }
+                    return val
+                }
+                return m
+            })
+            if s != replaced {
+                v.SetString(replaced)
+            }
+        }
+    }
 }
 
 func setDefaults() {

@@ -8,26 +8,26 @@
     "sse_heartbeat": 5
   },
   "database": {
-    "host": "",
-    "port": "",
-    "user": "",
-    "password": "",
-    "dbname": "",
-    "sslmode": "disable",
-    "timezone": "UTC"
+    "host": "${DB_HOST:-localhost}",
+    "port": "${DB_PORT:-5432}",
+    "user": "${DB_USER:-postgres}",
+    "password": "${DB_PASSWORD}",
+    "dbname": "${DB_NAME:-cdnagent}",
+    "sslmode": "${DB_SSLMODE:-disable}",
+    "timezone": "${DB_TIMEZONE:-UTC}"
   },
   "redis": {
-    "host": "localhost",
-    "port": "6379",
-    "password": "",
+    "host": "${REDIS_HOST:-localhost}",
+    "port": "${REDIS_PORT:-6379}",
+    "password": "${REDIS_PASSWORD}",
     "db": 0
   },
   "ai": {
     "llm": {
-      "provider": "",
-      "model": "",
-      "api_key": "",
-      "base_url": "",
+      "provider": "${LLM_PROVIDER:-claude}",
+      "model": "${LLM_MODEL:-claude-3-sonnet-20240229}",
+      "api_key": "${LLM_API_KEY}",
+      "base_url": "${LLM_BASE_URL}",
       "temperature": 0.7,
       "max_tokens": 2000,
       "top_k": 5,
@@ -60,7 +60,7 @@
     }
   },
   "jwt": {
-    "secret": "your-jwt-secret-here",
+    "secret": "${JWT_SECRET:-your-jwt-secret-here}",
     "expires_in": 24,
     "refresh_in": 168,
     "issuer": "cdnagent"
@@ -69,19 +69,19 @@
     "timeout": 30,
     "max_concurrent": 5,
     "grafana": {
-      "base_url": "",
-      "api_key": "",
+      "base_url": "${GRAFANA_BASE_URL}",
+      "api_key": "${GRAFANA_API_KEY}",
       "enabled": false
     },
     "logs": {
-      "elastic_url": "",
-      "username": "",
-      "password": "",
+      "elastic_url": "${ELASTIC_URL}",
+      "username": "${ELASTIC_USERNAME}",
+      "password": "${ELASTIC_PASSWORD}",
       "enabled": false
     },
     "cdn": {
-      "base_url": "",
-      "api_key": "",
+      "base_url": "${CDN_BASE_URL}",
+      "api_key": "${CDN_API_KEY}",
       "enabled": false
     }
   }
