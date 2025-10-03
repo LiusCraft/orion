@@ -79,7 +79,8 @@ type ChatTemplate interface {
 
 ## 3. 核心组件实现
 
-### 3.1 ChatModel配置
+### 3.1 ChatModel配置（示例）
+> 说明：以下示例使用 `CDNAIEngine` 等命名以 CDN 业务为例，实际工程中可替换为通用命名（如 `Engine`）。
 ```go
 package ai
 
@@ -155,7 +156,7 @@ func (e *CDNAIEngine) initChatModel() error {
 }
 ```
 
-### 3.2 CDN专用Tools实现
+### 3.2 Tools实现（示例：以 CDN 业务为例）
 ```go
 // CDN Grafana监控工具
 type GrafanaTool struct {
@@ -176,7 +177,7 @@ func NewGrafanaTool(baseURL, apiKey string) *GrafanaTool {
 func (gt *GrafanaTool) ToolInfo() *schema.ToolInfo {
     return &schema.ToolInfo{
         Name:        "grafana_query",
-        Description: "查询Grafana监控数据，支持PromQL查询语句获取CDN性能指标",
+        Description: "查询Grafana监控数据，支持PromQL（示例：以 CDN 性能指标为例）",
         Parameters: &schema.Parameters{
             Type: "object",
             Properties: map[string]*schema.Property{
@@ -238,7 +239,7 @@ func (gt *GrafanaTool) Invoke(ctx context.Context, input string) (string, error)
     return formatted, nil
 }
 
-// CDN日志查询工具
+// 日志查询工具（示例：以 CDN 业务为例）
 type CDNLogTool struct {
     elasticClient *elasticsearch.Client
 }
@@ -260,8 +261,8 @@ func NewCDNLogTool(elasticURL, username, password string) (*CDNLogTool, error) {
 
 func (lt *CDNLogTool) ToolInfo() *schema.ToolInfo {
     return &schema.ToolInfo{
-        Name:        "cdn_log_query",
-        Description: "查询CDN访问日志和错误日志，分析流量模式和故障信息",
+        Name:        "log_query",
+        Description: "查询访问日志和错误日志（示例：以 CDN 为例），分析流量模式和故障信息",
         Parameters: &schema.Parameters{
             Type: "object",
             Properties: map[string]*schema.Property{
@@ -388,7 +389,7 @@ func (scs *SimpleChatService) ProcessStreamQuery(ctx context.Context, userQuery 
 
 ### 3.4 ReAct Agent实现
 ```go
-// CDN专家Agent - 使用Eino Graph
+// 专家Agent（示例：以 CDN 业务为例） - 使用Eino Graph
 type CDNExpertAgent struct {
     engine *CDNAIEngine
     ragService *RAGService
@@ -416,7 +417,7 @@ func (agent *CDNExpertAgent) ProcessComplexQuery(ctx context.Context, userQuery 
         agent.engine.chatModel,
         []model.Tool{
             agent.engine.tools["grafana_query"],
-            agent.engine.tools["cdn_log_query"],
+            agent.engine.tools["log_query"],
         },
     )
     graph.AddNode("tools", toolNode)
