@@ -36,22 +36,22 @@ type RegisterRequest struct {
 }
 
 type LoginResponse struct {
-	AccessToken  string     `json:"accessToken"`
-	RefreshToken string     `json:"refreshToken"`
-	ExpiresIn    int64      `json:"expiresIn"`
-	User         *UserInfo  `json:"user"`
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+	ExpiresIn    int64     `json:"expiresIn"`
+	User         *UserInfo `json:"user"`
 }
 
 type UserInfo struct {
-    ID          uuid.UUID  `json:"id"`
-    Username    string     `json:"username"`
-    Email       string     `json:"email"`
-    DisplayName string     `json:"displayName"`
-    AvatarURL   string     `json:"avatarUrl"`
-    Role        string     `json:"role"`
-    Department  string     `json:"department"`
-    Status      string     `json:"status"`
-    LastLoginAt *time.Time `json:"lastLoginAt"`
+	ID          uuid.UUID  `json:"id"`
+	Username    string     `json:"username"`
+	Email       string     `json:"email"`
+	DisplayName string     `json:"displayName"`
+	AvatarURL   string     `json:"avatarUrl"`
+	Role        string     `json:"role"`
+	Department  string     `json:"department"`
+	Status      string     `json:"status"`
+	LastLoginAt *time.Time `json:"lastLoginAt"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {

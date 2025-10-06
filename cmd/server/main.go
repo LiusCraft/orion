@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/liusCraft/orion/internal/api"
 	"github.com/liusCraft/orion/internal/config"
 	"github.com/liusCraft/orion/internal/database"
 	"github.com/liusCraft/orion/internal/pkg/logger"
-	"github.com/joho/godotenv"
 )
 
 // @title AI Assistant API

@@ -10,10 +10,10 @@ var log *logrus.Logger
 
 func Init(mode string) {
 	log = logrus.New()
-	
+
 	// 设置输出
 	log.SetOutput(os.Stdout)
-	
+
 	// 根据模式设置日志级别和格式
 	if mode == "release" {
 		log.SetLevel(logrus.InfoLevel)

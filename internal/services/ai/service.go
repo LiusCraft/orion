@@ -1,34 +1,34 @@
 package ai
 
 import (
-    "context"
-    "fmt"
-    "time"
-    "strings"
+	"context"
+	"fmt"
+	"strings"
+	"time"
 
-    "github.com/cloudwego/eino-ext/components/model/claude"
-    "github.com/cloudwego/eino-ext/components/model/openai"
-    "github.com/cloudwego/eino/components/model"
-    "github.com/cloudwego/eino/schema"
+	"github.com/cloudwego/eino-ext/components/model/claude"
+	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
 
-    "github.com/liusCraft/orion/internal/config"
-    dbmodels "github.com/liusCraft/orion/internal/database/models"
-    "github.com/liusCraft/orion/internal/constants"
+	"github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/constants"
+	dbmodels "github.com/liusCraft/orion/internal/database/models"
 )
 
 // AIService AI服务接口
 type AIService struct {
-    chatModel model.ChatModel
-    config    *config.LLMConfig
+	chatModel model.ToolCallingChatModel
+	config    *config.LLMConfig
 }
 
 // ChatMessage 标准化的聊天消息格式
 type ChatMessage struct {
-    Role     string                 `json:"role"` // system, user, assistant
-    Content  string                 `json:"content"`
-    Metadata map[string]interface{} `json:"metadata,omitempty"`
-    // 用于工具消息：OpenAI工具调用需要tool消息携带tool_call_id
-    ToolCallID string `json:"tool_call_id,omitempty"`
+	Role     string                 `json:"role"` // system, user, assistant
+	Content  string                 `json:"content"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	// 用于工具消息：OpenAI工具调用需要tool消息携带tool_call_id
+	ToolCallID string `json:"tool_call_id,omitempty"`
 }
 
 // ChatResponse 聊天响应
@@ -62,7 +62,7 @@ type GenerateOptions struct {
 
 // NewAIService 创建AI服务实例
 func NewAIService(config *config.LLMConfig) (*AIService, error) {
-	var chatModel model.ChatModel
+	var chatModel model.ToolCallingChatModel
 	var err error
 
 	switch config.Provider {
@@ -85,7 +85,7 @@ func NewAIService(config *config.LLMConfig) (*AIService, error) {
 }
 
 // createClaudeModel 创建Claude模型
-func createClaudeModel(config *config.LLMConfig) (model.ChatModel, error) {
+func createClaudeModel(config *config.LLMConfig) (model.ToolCallingChatModel, error) {
 	claudeConfig := &claude.Config{
 		APIKey:    config.APIKey,
 		Model:     config.Model,
@@ -120,7 +120,7 @@ func createClaudeModel(config *config.LLMConfig) (model.ChatModel, error) {
 }
 
 // createOpenAIModel 创建OpenAI模型
-func createOpenAIModel(config *config.LLMConfig) (model.ChatModel, error) {
+func createOpenAIModel(config *config.LLMConfig) (model.ToolCallingChatModel, error) {
 	openaiConfig := &openai.ChatModelConfig{
 		APIKey:  config.APIKey,
 		Model:   config.Model,
@@ -186,78 +186,82 @@ func (s *AIService) Chat(ctx context.Context, messages []ChatMessage, opts *Gene
 
 // GenerateMessage 低层封装：返回完整的schema.Message，支持注入Tools
 func (s *AIService) GenerateMessage(ctx context.Context, messages []ChatMessage, tools []*schema.ToolInfo, opts *GenerateOptions) (*schema.Message, error) {
-    einoMessages := s.convertToEinoMessages(messages)
-    modelOpts := s.buildModelOptions(opts)
-    if len(tools) > 0 {
-        modelOpts = append(modelOpts, model.WithTools(tools))
-    }
-    msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
-    if err != nil {
-        return nil, fmt.Errorf("chat model generate error: %w", err)
-    }
-    return msg, nil
+	einoMessages := s.convertToEinoMessages(messages)
+	modelOpts := s.buildModelOptions(opts)
+	if len(tools) > 0 {
+		modelOpts = append(modelOpts, model.WithTools(tools))
+	}
+	msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("chat model generate error: %w", err)
+	}
+	return msg, nil
 }
 
 // GenerateEinoMessage 直接使用eino消息，便于携带tool_calls
 func (s *AIService) GenerateEinoMessage(ctx context.Context, einoMessages []*schema.Message, tools []*schema.ToolInfo, opts *GenerateOptions) (*schema.Message, error) {
-    modelOpts := s.buildModelOptions(opts)
-    if len(tools) > 0 {
-        modelOpts = append(modelOpts, model.WithTools(tools))
-    }
-    msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
-    if err != nil {
-        return nil, fmt.Errorf("chat model generate error: %w", err)
-    }
-    return msg, nil
+	modelOpts := s.buildModelOptions(opts)
+	if len(tools) > 0 {
+		modelOpts = append(modelOpts, model.WithTools(tools))
+	}
+	msg, err := s.chatModel.Generate(ctx, einoMessages, modelOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("chat model generate error: %w", err)
+	}
+	return msg, nil
 }
 
 // ChatStreamEino 使用eino消息进行流式对话
 func (s *AIService) ChatStreamEino(ctx context.Context, einoMessages []*schema.Message, opts *GenerateOptions) (<-chan StreamChunk, error) {
-    modelOpts := s.buildModelOptions(opts)
-    streamReader, err := s.chatModel.Stream(ctx, einoMessages, modelOpts...)
-    if err != nil {
-        return nil, fmt.Errorf("chat model stream error: %w", err)
-    }
-    chunkChan := make(chan StreamChunk, 10)
-    go func() {
-        defer close(chunkChan)
-        defer streamReader.Close()
-        fullContent := ""
-        chunkID := fmt.Sprintf("chat-%d", time.Now().UnixNano())
-        for {
-            select {
-            case <-ctx.Done():
-                chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: ctx.Err()}
-                return
-            default:
-                chunk, err := streamReader.Recv()
-                if err != nil {
-                    if err.Error() == "EOF" || err.Error() == "stream finished" {
-                        var tokenCount int
-                        var finishReason string
-                        if chunk != nil && chunk.ResponseMeta != nil {
-                            if chunk.ResponseMeta.Usage != nil { tokenCount = chunk.ResponseMeta.Usage.TotalTokens }
-                            finishReason = chunk.ResponseMeta.FinishReason
-                        }
-                        chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, TokenCount: tokenCount, FinishReason: finishReason}
-                        return
-                    }
-                    chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: err}
-                    return
-                }
-                if chunk == nil { continue }
-                delta := chunk.Content
-                fullContent += delta
-                chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Delta: delta, Finished: false}
-            }
-        }
-    }()
-    return chunkChan, nil
+	modelOpts := s.buildModelOptions(opts)
+	streamReader, err := s.chatModel.Stream(ctx, einoMessages, modelOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("chat model stream error: %w", err)
+	}
+	chunkChan := make(chan StreamChunk, 10)
+	go func() {
+		defer close(chunkChan)
+		defer streamReader.Close()
+		fullContent := ""
+		chunkID := fmt.Sprintf("chat-%d", time.Now().UnixNano())
+		for {
+			select {
+			case <-ctx.Done():
+				chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: ctx.Err()}
+				return
+			default:
+				chunk, err := streamReader.Recv()
+				if err != nil {
+					if err.Error() == "EOF" || err.Error() == "stream finished" {
+						var tokenCount int
+						var finishReason string
+						if chunk != nil && chunk.ResponseMeta != nil {
+							if chunk.ResponseMeta.Usage != nil {
+								tokenCount = chunk.ResponseMeta.Usage.TotalTokens
+							}
+							finishReason = chunk.ResponseMeta.FinishReason
+						}
+						chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, TokenCount: tokenCount, FinishReason: finishReason}
+						return
+					}
+					chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Finished: true, Error: err}
+					return
+				}
+				if chunk == nil {
+					continue
+				}
+				delta := chunk.Content
+				fullContent += delta
+				chunkChan <- StreamChunk{ID: chunkID, Content: fullContent, Delta: delta, Finished: false}
+			}
+		}
+	}()
+	return chunkChan, nil
 }
 
 // ToEinoMessages 导出转换函数，便于外部直接构造eino上下文
 func (s *AIService) ToEinoMessages(messages []ChatMessage) []*schema.Message {
-    return s.convertToEinoMessages(messages)
+	return s.convertToEinoMessages(messages)
 }
 
 // ChatStream 流式对话
@@ -423,14 +427,14 @@ func (s *AIService) convertToEinoMessages(messages []ChatMessage) []*schema.Mess
 			role = schema.User // 默认为用户消息
 		}
 
-        einoMessages = append(einoMessages, &schema.Message{
-            Role:       role,
-            Content:    msg.Content,
-            ToolCallID: msg.ToolCallID,
-        })
-    }
+		einoMessages = append(einoMessages, &schema.Message{
+			Role:       role,
+			Content:    msg.Content,
+			ToolCallID: msg.ToolCallID,
+		})
+	}
 
-    return einoMessages
+	return einoMessages
 }
 
 // buildModelOptions 构建模型选项
@@ -467,70 +471,70 @@ func getTokenCount(usage *schema.TokenUsage) int {
 
 // intPtr 创建int指针
 func intPtr(i int) *int {
-    return &i
+	return &i
 }
 
 // maskAPIKey 隐藏API密钥的敏感部分
 func maskAPIKey(apiKey string) string {
-    if apiKey == "" {
-        return "<empty>"
-    }
-    if len(apiKey) <= 8 {
-        return "***"
-    }
-    return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
+	if apiKey == "" {
+		return "<empty>"
+	}
+	if len(apiKey) <= 8 {
+		return "***"
+	}
+	return apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
 }
 
 // GenerateTitle 根据用户消息与AI回复生成简短标题（中文，简洁，无标点）
 func (s *AIService) GenerateTitle(ctx context.Context, userText, aiText string) (string, error) {
-    // 兜底：用户内容截断
-    fallback := func() string {
-        rt := []rune(userText)
-        if len(rt) == 0 {
-            return constants.DefaultConversationTitle
-        }
-        if len(rt) > 16 {
-            rt = rt[:16]
-        }
-        return string(rt)
-    }
+	// 兜底：用户内容截断
+	fallback := func() string {
+		rt := []rune(userText)
+		if len(rt) == 0 {
+			return constants.DefaultConversationTitle
+		}
+		if len(rt) > 16 {
+			rt = rt[:16]
+		}
+		return string(rt)
+	}
 
-    // 构造提示词
-    sys := "你是对话标题助手。请根据给定的用户问题和助理回答，生成一个简短的中文标题，要求：6-16个字，概括主题，避免客套话；不要包含标点、书名号或引号；只输出标题文本。"
-    prompt := "用户提问：\n" + userText + "\n\n助理回答：\n" + aiText + "\n\n现在只输出一个简短中文标题。"
+	// 构造提示词
+	sys := "你是对话标题助手。请根据给定的用户问题和助理回答，生成一个简短的中文标题，要求：6-16个字，概括主题，避免客套话；不要包含标点、书名号或引号；只输出标题文本。"
+	prompt := "用户提问：\n" + userText + "\n\n助理回答：\n" + aiText + "\n\n现在只输出一个简短中文标题。"
 
-    // 最多给很少的tokens，保证快速返回
-    maxTokens := 24
-    resp, err := s.Chat(ctx, []ChatMessage{
-        {Role: "system", Content: sys},
-        {Role: "user", Content: prompt},
-    }, &GenerateOptions{MaxTokens: &maxTokens})
-    if err != nil {
-        return fallback(), err
-    }
+	// 最多给很少的tokens，保证快速返回
+	maxTokens := 24
+	resp, err := s.Chat(ctx, []ChatMessage{
+		{Role: "system", Content: sys},
+		{Role: "user", Content: prompt},
+	}, &GenerateOptions{MaxTokens: &maxTokens})
+	if err != nil {
+		return fallback(), err
+	}
 
-    title := resp.Content
-    // 清理常见符号与空白
-    replacer := strings.NewReplacer(
-        "\n", "", "\r", "", "\t", "",
-        "\"", "", "'", "", "“", "", "”", "", "‘", "", "’", "",
-        "【", "", "】", "", "（", "", "）", "", "(", "", ")", "",
-        "[", "", "]", "", "{", "", "}", "",
-        "。", "", "，", "", ",", "", "！", "", "?", "", "？", "",
-        "：", "", ":", "", "；", "", ";", "", "、", "", "—", "", "-", "",
-    )
-    title = replacer.Replace(title)
-    title = strings.TrimSpace(title)
-    if title == "" {
-        return fallback(), nil
-    }
+	title := resp.Content
+	// 清理常见符号与空白
+	replacer := strings.NewReplacer(
+		"\n", "", "\r", "", "\t", "",
+		"\"", "", "'", "", "“", "", "”", "", "‘", "", "’", "",
+		"【", "", "】", "", "（", "", "）", "", "(", "", ")", "",
+		"[", "", "]", "", "{", "", "}", "",
+		"。", "", "，", "", ",", "", "！", "", "?", "", "？", "",
+		"：", "", ":", "", "；", "", ";", "", "、", "", "—", "", "-", "",
+	)
+	title = replacer.Replace(title)
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fallback(), nil
+	}
 
-    // 限长
-    rt := []rune(title)
-    if len(rt) > 20 {
-        rt = rt[:20]
-    }
-    return string(rt), nil
+	// 限长
+	rt := []rune(title)
+	if len(rt) > 20 {
+		rt = rt[:20]
+	}
+	return string(rt), nil
 }
 
 // end

@@ -31,13 +31,13 @@ type CreateCategoryRequest struct {
 }
 
 type CreateDocumentRequest struct {
-	CategoryID  uuid.UUID      `json:"categoryId" binding:"required"`
-	Title       string         `json:"title" binding:"required,max=200"`
-	Content     string         `json:"content" binding:"required"`
-	ContentType string         `json:"contentType"`
-	Summary     string         `json:"summary"`
-	Tags        []string       `json:"tags"`
-	SourceURL   string         `json:"sourceUrl"`
+	CategoryID  uuid.UUID `json:"categoryId" binding:"required"`
+	Title       string    `json:"title" binding:"required,max=200"`
+	Content     string    `json:"content" binding:"required"`
+	ContentType string    `json:"contentType"`
+	Summary     string    `json:"summary"`
+	Tags        []string  `json:"tags"`
+	SourceURL   string    `json:"sourceUrl"`
 }
 
 type UpdateDocumentRequest struct {
@@ -69,23 +69,23 @@ type CategoryResponse struct {
 }
 
 type DocumentResponse struct {
-	ID           uuid.UUID `json:"id"`
-	CategoryID   uuid.UUID `json:"categoryId"`
-	Title        string    `json:"title"`
-	Content      string    `json:"content"`
-	ContentType  string    `json:"contentType"`
-	Summary      string    `json:"summary"`
-	Tags         []string  `json:"tags"`
-	SourceURL    string    `json:"sourceUrl"`
-	AuthorID     *uuid.UUID `json:"authorId"`
-	Version      int       `json:"version"`
-	Status       string    `json:"status"`
-	ViewCount    int       `json:"viewCount"`
-	LikeCount    int       `json:"likeCount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-	Category     *CategoryResponse `json:"category,omitempty"`
-	Author       *AuthorInfo      `json:"author,omitempty"`
+	ID          uuid.UUID         `json:"id"`
+	CategoryID  uuid.UUID         `json:"categoryId"`
+	Title       string            `json:"title"`
+	Content     string            `json:"content"`
+	ContentType string            `json:"contentType"`
+	Summary     string            `json:"summary"`
+	Tags        []string          `json:"tags"`
+	SourceURL   string            `json:"sourceUrl"`
+	AuthorID    *uuid.UUID        `json:"authorId"`
+	Version     int               `json:"version"`
+	Status      string            `json:"status"`
+	ViewCount   int               `json:"viewCount"`
+	LikeCount   int               `json:"likeCount"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
+	Category    *CategoryResponse `json:"category,omitempty"`
+	Author      *AuthorInfo       `json:"author,omitempty"`
 }
 
 type AuthorInfo struct {
@@ -154,7 +154,7 @@ func (h *KnowledgeHandler) CreateCategory(c *gin.Context) {
 
 func (h *KnowledgeHandler) GetCategories(c *gin.Context) {
 	var categories []models.KnowledgeCategory
-	
+
 	if err := h.db.Where("status = ?", "active").
 		Order("sort_order ASC, created_at ASC").
 		Find(&categories).Error; err != nil {
@@ -201,7 +201,7 @@ func (h *KnowledgeHandler) GetCategories(c *gin.Context) {
 
 func (h *KnowledgeHandler) UpdateCategory(c *gin.Context) {
 	categoryID := c.Param("id")
-	
+
 	var category models.KnowledgeCategory
 	if err := h.db.Where("id = ? AND status = ?", categoryID, "active").First(&category).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
@@ -258,7 +258,7 @@ func (h *KnowledgeHandler) UpdateCategory(c *gin.Context) {
 
 func (h *KnowledgeHandler) DeleteCategory(c *gin.Context) {
 	categoryID := c.Param("id")
-	
+
 	var category models.KnowledgeCategory
 	if err := h.db.Where("id = ? AND status = ?", categoryID, "active").First(&category).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
@@ -309,7 +309,7 @@ func (h *KnowledgeHandler) DeleteCategory(c *gin.Context) {
 // 知识文档管理
 func (h *KnowledgeHandler) CreateDocument(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	var req CreateDocumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, pkgErrors.NewErrorResponse(
@@ -383,17 +383,17 @@ func (h *KnowledgeHandler) CreateDocument(c *gin.Context) {
 }
 
 func (h *KnowledgeHandler) GetDocuments(c *gin.Context) {
-    // 分页和过滤参数（优先驼峰，兼容下划线）
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    pageSizeStr := c.Query("pageSize")
-    if pageSizeStr == "" {
-        pageSizeStr = c.DefaultQuery("page_size", "20")
-    }
-    pageSize, _ := strconv.Atoi(pageSizeStr)
-    categoryID := c.Query("categoryId")
-    if categoryID == "" {
-        categoryID = c.Query("category_id")
-    }
+	// 分页和过滤参数（优先驼峰，兼容下划线）
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSizeStr := c.Query("pageSize")
+	if pageSizeStr == "" {
+		pageSizeStr = c.DefaultQuery("page_size", "20")
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
+	categoryID := c.Query("categoryId")
+	if categoryID == "" {
+		categoryID = c.Query("category_id")
+	}
 	status := c.DefaultQuery("status", "published")
 	tag := c.Query("tag")
 	search := c.Query("search")
@@ -459,22 +459,22 @@ func (h *KnowledgeHandler) GetDocuments(c *gin.Context) {
 		responses = append(responses, h.buildDocumentResponse(doc, categoryResp, authorResp))
 	}
 
-    result := map[string]interface{}{
-        "data": responses,
-        "pagination": map[string]interface{}{
-            "page":      page,
-            "pageSize":  pageSize,
-            "total":     total,
-            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
-        },
-    }
+	result := map[string]interface{}{
+		"data": responses,
+		"pagination": map[string]interface{}{
+			"page":      page,
+			"pageSize":  pageSize,
+			"total":     total,
+			"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+		},
+	}
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }
 
 func (h *KnowledgeHandler) GetDocument(c *gin.Context) {
 	documentID := c.Param("id")
-	
+
 	var document models.KnowledgeDocument
 	if err := h.db.Preload("Category").Preload("Author").
 		Where("id = ? AND status != ?", documentID, "archived").
@@ -516,7 +516,7 @@ func (h *KnowledgeHandler) GetDocument(c *gin.Context) {
 func (h *KnowledgeHandler) UpdateDocument(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	documentID := c.Param("id")
-	
+
 	var document models.KnowledgeDocument
 	if err := h.db.Where("id = ? AND status != ?", documentID, "archived").First(&document).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
@@ -574,7 +574,7 @@ func (h *KnowledgeHandler) UpdateDocument(c *gin.Context) {
 	// 如果内容有变化，创建新版本记录
 	if contentChanged {
 		h.db.Where("id = ?", documentID).First(&document) // 重新获取最新数据
-		
+
 		userUUID := userID.(uuid.UUID)
 		version := models.KnowledgeDocumentVersion{
 			ID:            uuid.New(),
@@ -593,7 +593,7 @@ func (h *KnowledgeHandler) UpdateDocument(c *gin.Context) {
 
 	// 重新查询更新后的数据
 	h.db.Preload("Category").Preload("Author").Where("id = ?", documentID).First(&document)
-	
+
 	var categoryResp *CategoryResponse
 	if document.Category.ID != uuid.Nil {
 		categoryResp = &CategoryResponse{
@@ -619,7 +619,7 @@ func (h *KnowledgeHandler) UpdateDocument(c *gin.Context) {
 
 func (h *KnowledgeHandler) DeleteDocument(c *gin.Context) {
 	documentID := c.Param("id")
-	
+
 	var document models.KnowledgeDocument
 	if err := h.db.Where("id = ? AND status != ?", documentID, "archived").First(&document).Error; err != nil {
 		c.JSON(http.StatusNotFound, pkgErrors.NewErrorResponse(
@@ -664,7 +664,7 @@ func (h *KnowledgeHandler) SearchDocuments(c *gin.Context) {
 	// 文本搜索
 	if req.Query != "" {
 		searchTerm := "%" + strings.ToLower(req.Query) + "%"
-		query = query.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(summary) LIKE ?", 
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(summary) LIKE ?",
 			searchTerm, searchTerm, searchTerm)
 	}
 

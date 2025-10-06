@@ -22,66 +22,66 @@ func NewAdminHandler(db *gorm.DB) *AdminHandler {
 }
 
 type CreateUserRequest struct {
-    Username    string `json:"username" binding:"required,min=3,max=50"`
-    Email       string `json:"email" binding:"required,email"`
-    Password    string `json:"password" binding:"required,min=6"`
-    DisplayName string `json:"displayName" binding:"max=100"`
-    Role        string `json:"role" binding:"required,oneof=admin user viewer"`
-    Department  string `json:"department" binding:"max=50"`
-    Status      string `json:"status" binding:"oneof=active inactive"`
+	Username    string `json:"username" binding:"required,min=3,max=50"`
+	Email       string `json:"email" binding:"required,email"`
+	Password    string `json:"password" binding:"required,min=6"`
+	DisplayName string `json:"displayName" binding:"max=100"`
+	Role        string `json:"role" binding:"required,oneof=admin user viewer"`
+	Department  string `json:"department" binding:"max=50"`
+	Status      string `json:"status" binding:"oneof=active inactive"`
 }
 
 type UpdateUserRequest struct {
-    DisplayName string `json:"displayName" binding:"max=100"`
-    Role        string `json:"role" binding:"oneof=admin user viewer"`
-    Department  string `json:"department" binding:"max=50"`
-    Status      string `json:"status" binding:"oneof=active inactive suspended"`
+	DisplayName string `json:"displayName" binding:"max=100"`
+	Role        string `json:"role" binding:"oneof=admin user viewer"`
+	Department  string `json:"department" binding:"max=50"`
+	Status      string `json:"status" binding:"oneof=active inactive suspended"`
 }
 
 type SystemConfigRequest struct {
-    ConfigKey   string                 `json:"configKey" binding:"required,max=100"`
-    ConfigValue map[string]interface{} `json:"configValue" binding:"required"`
-    Description string                 `json:"description"`
-    ConfigType  string                 `json:"configType" binding:"required,max=50"`
-    IsEncrypted bool                   `json:"isEncrypted"`
+	ConfigKey   string                 `json:"configKey" binding:"required,max=100"`
+	ConfigValue map[string]interface{} `json:"configValue" binding:"required"`
+	Description string                 `json:"description"`
+	ConfigType  string                 `json:"configType" binding:"required,max=50"`
+	IsEncrypted bool                   `json:"isEncrypted"`
 }
 
 type UserManagementResponse struct {
-    ID          uuid.UUID  `json:"id"`
-    Username    string     `json:"username"`
-    Email       string     `json:"email"`
-    DisplayName string     `json:"displayName"`
-    AvatarURL   string     `json:"avatarUrl"`
-    Role        string     `json:"role"`
-    Department  string     `json:"department"`
-    Status      string     `json:"status"`
-    LastLoginAt *time.Time `json:"lastLoginAt"`
-    CreatedAt   time.Time  `json:"createdAt"`
-    UpdatedAt   time.Time  `json:"updatedAt"`
+	ID          uuid.UUID  `json:"id"`
+	Username    string     `json:"username"`
+	Email       string     `json:"email"`
+	DisplayName string     `json:"displayName"`
+	AvatarURL   string     `json:"avatarUrl"`
+	Role        string     `json:"role"`
+	Department  string     `json:"department"`
+	Status      string     `json:"status"`
+	LastLoginAt *time.Time `json:"lastLoginAt"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 type SystemConfigResponse struct {
-    ID            uuid.UUID              `json:"id"`
-    ConfigKey     string                 `json:"configKey"`
-    ConfigValue   map[string]interface{} `json:"configValue"`
-    Description   string                 `json:"description"`
-    ConfigType    string                 `json:"configType"`
-    IsEncrypted   bool                   `json:"isEncrypted"`
-    UpdatedBy     *uuid.UUID             `json:"updatedBy"`
-    CreatedAt     time.Time              `json:"createdAt"`
-    UpdatedAt     time.Time              `json:"updatedAt"`
-    UpdatedByUser *UserManagementResponse `json:"updatedByUser,omitempty"`
+	ID            uuid.UUID               `json:"id"`
+	ConfigKey     string                  `json:"configKey"`
+	ConfigValue   map[string]interface{}  `json:"configValue"`
+	Description   string                  `json:"description"`
+	ConfigType    string                  `json:"configType"`
+	IsEncrypted   bool                    `json:"isEncrypted"`
+	UpdatedBy     *uuid.UUID              `json:"updatedBy"`
+	CreatedAt     time.Time               `json:"createdAt"`
+	UpdatedAt     time.Time               `json:"updatedAt"`
+	UpdatedByUser *UserManagementResponse `json:"updatedByUser,omitempty"`
 }
 
 type SystemStatsResponse struct {
-    TotalUsers         int64 `json:"totalUsers"`
-    ActiveUsers        int64 `json:"activeUsers"`
-    TotalConversations int64 `json:"totalConversations"`
-    TotalMessages      int64 `json:"totalMessages"`
-    TotalDocuments     int64 `json:"totalDocuments"`
-    TotalTools         int64 `json:"totalTools"`
-    TodayMessages      int64 `json:"todayMessages"`
-    TodayUsers         int64 `json:"todayUsers"`
+	TotalUsers         int64 `json:"totalUsers"`
+	ActiveUsers        int64 `json:"activeUsers"`
+	TotalConversations int64 `json:"totalConversations"`
+	TotalMessages      int64 `json:"totalMessages"`
+	TotalDocuments     int64 `json:"totalDocuments"`
+	TotalTools         int64 `json:"totalTools"`
+	TodayMessages      int64 `json:"todayMessages"`
+	TodayUsers         int64 `json:"todayUsers"`
 }
 
 // 用户管理
@@ -128,14 +128,14 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 
 	// 创建用户（这里简化处理，实际应该发送邮件让用户设置密码）
 	user := models.User{
-		ID:          uuid.New(),
-		Username:    req.Username,
-		Email:       req.Email,
+		ID:           uuid.New(),
+		Username:     req.Username,
+		Email:        req.Email,
 		PasswordHash: "temp_password", // TODO: 应该生成临时密码并发送邮件
-		DisplayName: req.DisplayName,
-		Role:        req.Role,
-		Department:  req.Department,
-		Status:      "active",
+		DisplayName:  req.DisplayName,
+		Role:         req.Role,
+		Department:   req.Department,
+		Status:       "active",
 	}
 
 	if req.Status != "" {
@@ -179,13 +179,13 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		return
 	}
 
-    // 分页参数（优先驼峰，兼容下划线）
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    pageSizeStr := c.Query("pageSize")
-    if pageSizeStr == "" {
-        pageSizeStr = c.DefaultQuery("page_size", "20")
-    }
-    pageSize, _ := strconv.Atoi(pageSizeStr)
+	// 分页参数（优先驼峰，兼容下划线）
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSizeStr := c.Query("pageSize")
+	if pageSizeStr == "" {
+		pageSizeStr = c.DefaultQuery("page_size", "20")
+	}
+	pageSize, _ := strconv.Atoi(pageSizeStr)
 	userRole := c.Query("role")
 	status := c.Query("status")
 	department := c.Query("department")
@@ -211,7 +211,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		query = query.Where("department = ?", department)
 	}
 	if search != "" {
-		query = query.Where("username ILIKE ? OR email ILIKE ? OR display_name ILIKE ?", 
+		query = query.Where("username ILIKE ? OR email ILIKE ? OR display_name ILIKE ?",
 			"%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
@@ -248,15 +248,15 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		})
 	}
 
-    result := map[string]interface{}{
-        "data": responses,
-        "pagination": map[string]interface{}{
-            "page":      page,
-            "pageSize":  pageSize,
-            "total":     total,
-            "totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
-        },
-    }
+	result := map[string]interface{}{
+		"data": responses,
+		"pagination": map[string]interface{}{
+			"page":      page,
+			"pageSize":  pageSize,
+			"total":     total,
+			"totalPage": (total + int64(pageSize) - 1) / int64(pageSize),
+		},
+	}
 
 	c.JSON(http.StatusOK, pkgErrors.NewSuccessResponse(result))
 }
@@ -712,7 +712,7 @@ func (h *AdminHandler) GetSystemStats(c *gin.Context) {
 	// 统计今日数据
 	today := time.Now().Truncate(24 * time.Hour)
 	h.db.Model(&models.Message{}).Where("created_at >= ?", today).Count(&stats.TodayMessages)
-	
+
 	// 今日活跃用户（今日有登录或发送消息的用户）
 	h.db.Model(&models.User{}).Where("last_login_at >= ?", today).Count(&stats.TodayUsers)
 

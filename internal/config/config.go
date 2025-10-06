@@ -1,12 +1,12 @@
 package config
 
 import (
-    "fmt"
-    "os"
-    "reflect"
-    "regexp"
+	"fmt"
+	"os"
+	"reflect"
+	"regexp"
 
-    "github.com/spf13/viper"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -19,13 +19,13 @@ type Config struct {
 }
 
 type ServerConfig struct {
-    Host         string `mapstructure:"host"`
-    Port         string `mapstructure:"port"`
-    Mode         string `mapstructure:"mode"` // debug, release
-    ReadTimeout  int    `mapstructure:"read_timeout"`
-    WriteTimeout int    `mapstructure:"write_timeout"`
-    // SSE 心跳间隔（秒），用于保持长连接活跃
-    SSEHeartbeat int    `mapstructure:"sse_heartbeat"`
+	Host         string `mapstructure:"host"`
+	Port         string `mapstructure:"port"`
+	Mode         string `mapstructure:"mode"` // debug, release
+	ReadTimeout  int    `mapstructure:"read_timeout"`
+	WriteTimeout int    `mapstructure:"write_timeout"`
+	// SSE 心跳间隔（秒），用于保持长连接活跃
+	SSEHeartbeat int `mapstructure:"sse_heartbeat"`
 }
 
 type DatabaseConfig struct {
@@ -53,8 +53,8 @@ type AIConfig struct {
 }
 
 type LLMConfig struct {
-	Provider    string  `mapstructure:"provider"`     // openai, claude, qwen
-	Model       string  `mapstructure:"model"`        // gpt-4, claude-3-sonnet-20240229, qwen-plus
+	Provider    string  `mapstructure:"provider"` // openai, claude, qwen
+	Model       string  `mapstructure:"model"`    // gpt-4, claude-3-sonnet-20240229, qwen-plus
 	APIKey      string  `mapstructure:"api_key"`
 	BaseURL     string  `mapstructure:"base_url"`
 	Temperature float64 `mapstructure:"temperature"`
@@ -62,8 +62,8 @@ type LLMConfig struct {
 	Timeout     int     `mapstructure:"timeout"`
 
 	// Claude特有参数
-	TopK       int     `mapstructure:"top_k"`
-	TopP       float64 `mapstructure:"top_p"`
+	TopK int     `mapstructure:"top_k"`
+	TopP float64 `mapstructure:"top_p"`
 
 	// 系统提示词配置
 	SystemPrompt string `mapstructure:"system_prompt"`
@@ -82,37 +82,37 @@ type RAGConfig struct {
 }
 
 type AgentConfig struct {
-    MaxIterations   int  `mapstructure:"max_iterations"`
-    ThinkingEnabled bool `mapstructure:"thinking_enabled"`
-    MemoryEnabled   bool `mapstructure:"memory_enabled"`
-    MemoryLength    int  `mapstructure:"memory_length"`
-    // 规划阶段：工具调用最多轮数（非流式），默认1轮即可
-    ToolPlanMaxIter int  `mapstructure:"tool_plan_max_iter"`
-    // 是否根据用户意图判断再启用工具规划（简单关键词启发式）
-    ToolIntentEnabled bool `mapstructure:"tool_intent_enabled"`
+	MaxIterations   int  `mapstructure:"max_iterations"`
+	ThinkingEnabled bool `mapstructure:"thinking_enabled"`
+	MemoryEnabled   bool `mapstructure:"memory_enabled"`
+	MemoryLength    int  `mapstructure:"memory_length"`
+	// 规划阶段：工具调用最多轮数（非流式），默认1轮即可
+	ToolPlanMaxIter int `mapstructure:"tool_plan_max_iter"`
+	// 是否根据用户意图判断再启用工具规划（简单关键词启发式）
+	ToolIntentEnabled bool `mapstructure:"tool_intent_enabled"`
 }
 
 type EmbeddingConfig struct {
-	Provider     string `mapstructure:"provider"`     // openai, local
-	Model        string `mapstructure:"model"`        // text-embedding-ada-002
+	Provider     string `mapstructure:"provider"` // openai, local
+	Model        string `mapstructure:"model"`    // text-embedding-ada-002
 	ChunkSize    int    `mapstructure:"chunk_size"`
 	ChunkOverlap int    `mapstructure:"chunk_overlap"`
 	BatchSize    int    `mapstructure:"batch_size"`
 }
 
 type JWTConfig struct {
-	Secret     string `mapstructure:"secret"`
-	ExpiresIn  int    `mapstructure:"expires_in"`  // hours
-	RefreshIn  int    `mapstructure:"refresh_in"`  // hours
-	Issuer     string `mapstructure:"issuer"`
+	Secret    string `mapstructure:"secret"`
+	ExpiresIn int    `mapstructure:"expires_in"` // hours
+	RefreshIn int    `mapstructure:"refresh_in"` // hours
+	Issuer    string `mapstructure:"issuer"`
 }
 
 type ToolsConfig struct {
-	Timeout       int                    `mapstructure:"timeout"`
-	MaxConcurrent int                    `mapstructure:"max_concurrent"`
-	Grafana       GrafanaConfig          `mapstructure:"grafana"`
-	Logs          LogsConfig             `mapstructure:"logs"`
-	CDN           CDNConfig              `mapstructure:"cdn"`
+	Timeout       int           `mapstructure:"timeout"`
+	MaxConcurrent int           `mapstructure:"max_concurrent"`
+	Grafana       GrafanaConfig `mapstructure:"grafana"`
+	Logs          LogsConfig    `mapstructure:"logs"`
+	CDN           CDNConfig     `mapstructure:"cdn"`
 }
 
 type GrafanaConfig struct {
@@ -159,14 +159,14 @@ func Load() error {
 		}
 	}
 
-    // 解析配置
-    config := &Config{}
-    if err := viper.Unmarshal(config); err != nil {
-        return fmt.Errorf("解析配置失败: %w", err)
-    }
+	// 解析配置
+	config := &Config{}
+	if err := viper.Unmarshal(config); err != nil {
+		return fmt.Errorf("解析配置失败: %w", err)
+	}
 
-    // 展开字符串中的环境变量占位符，如 ${VAR}
-    expandEnvPlaceholders(config)
+	// 展开字符串中的环境变量占位符，如 ${VAR}
+	expandEnvPlaceholders(config)
 
 	// 从环境变量覆盖敏感信息
 	if dbPassword := os.Getenv("CDNAGENT_DATABASE_PASSWORD"); dbPassword != "" {
@@ -179,67 +179,67 @@ func Load() error {
 		config.JWT.Secret = jwtSecret
 	}
 
-    GlobalConfig = config
-    return nil
+	GlobalConfig = config
+	return nil
 }
 
 // 支持占位符格式：${VAR} 或 ${VAR:-default}
 var envPlaceholderRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}`)
 
 func expandEnvPlaceholders(cfg *Config) {
-    if cfg == nil {
-        return
-    }
-    replacePlaceholders(reflect.ValueOf(cfg))
+	if cfg == nil {
+		return
+	}
+	replacePlaceholders(reflect.ValueOf(cfg))
 }
 
 func replacePlaceholders(v reflect.Value) {
-    if !v.IsValid() {
-        return
-    }
-    switch v.Kind() {
-    case reflect.Ptr:
-        if !v.IsNil() {
-            replacePlaceholders(v.Elem())
-        }
-    case reflect.Struct:
-        for i := 0; i < v.NumField(); i++ {
-            f := v.Field(i)
-            replacePlaceholders(f)
-        }
-    case reflect.Slice, reflect.Array:
-        for i := 0; i < v.Len(); i++ {
-            replacePlaceholders(v.Index(i))
-        }
-    case reflect.Map:
-        for _, key := range v.MapKeys() {
-            val := v.MapIndex(key)
-            replacePlaceholders(val)
-        }
-    case reflect.String:
-        if v.CanSet() {
-            s := v.String()
-            replaced := envPlaceholderRe.ReplaceAllStringFunc(s, func(m string) string {
-                sub := envPlaceholderRe.FindStringSubmatch(m)
-                if len(sub) >= 2 {
-                    name := sub[1]
-                    def := ""
-                    if len(sub) >= 3 {
-                        def = sub[2]
-                    }
-                    val := os.Getenv(name)
-                    if val == "" {
-                        val = def
-                    }
-                    return val
-                }
-                return m
-            })
-            if s != replaced {
-                v.SetString(replaced)
-            }
-        }
-    }
+	if !v.IsValid() {
+		return
+	}
+	switch v.Kind() {
+	case reflect.Ptr:
+		if !v.IsNil() {
+			replacePlaceholders(v.Elem())
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			f := v.Field(i)
+			replacePlaceholders(f)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			replacePlaceholders(v.Index(i))
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			val := v.MapIndex(key)
+			replacePlaceholders(val)
+		}
+	case reflect.String:
+		if v.CanSet() {
+			s := v.String()
+			replaced := envPlaceholderRe.ReplaceAllStringFunc(s, func(m string) string {
+				sub := envPlaceholderRe.FindStringSubmatch(m)
+				if len(sub) >= 2 {
+					name := sub[1]
+					def := ""
+					if len(sub) >= 3 {
+						def = sub[2]
+					}
+					val := os.Getenv(name)
+					if val == "" {
+						val = def
+					}
+					return val
+				}
+				return m
+			})
+			if s != replaced {
+				v.SetString(replaced)
+			}
+		}
+	}
 }
 
 func setDefaults() {
@@ -247,11 +247,11 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("server.mode", "debug")
-    viper.SetDefault("server.read_timeout", 60)
-    // 对于SSE长连接，写超时为0（不限制）
-    viper.SetDefault("server.write_timeout", 0)
-    // SSE 心跳，默认5秒（可根据代理链路调小）
-    viper.SetDefault("server.sse_heartbeat", 5)
+	viper.SetDefault("server.read_timeout", 60)
+	// 对于SSE长连接，写超时为0（不限制）
+	viper.SetDefault("server.write_timeout", 0)
+	// SSE 心跳，默认5秒（可根据代理链路调小）
+	viper.SetDefault("server.sse_heartbeat", 5)
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")
@@ -276,7 +276,7 @@ func setDefaults() {
 	viper.SetDefault("ai.llm.top_p", 0.9)
 	viper.SetDefault("ai.llm.retry_count", 3)
 	viper.SetDefault("ai.llm.retry_delay", 1)
-    viper.SetDefault("ai.llm.system_prompt", `你是工程效能 AI 助手，面向研发、运维、技术支持等角色。
+	viper.SetDefault("ai.llm.system_prompt", `你是工程效能 AI 助手，面向研发、运维、技术支持等角色。
 
 你的能力包括但不限于：
 1. 故障诊断与解决方案
@@ -302,13 +302,13 @@ func setDefaults() {
 	viper.SetDefault("ai.rag.hybrid_enabled", true)
 
 	// Agent defaults
-    viper.SetDefault("ai.agent.max_iterations", 10)
-    viper.SetDefault("ai.agent.thinking_enabled", true)
-    viper.SetDefault("ai.agent.memory_enabled", true)
-    viper.SetDefault("ai.agent.memory_length", 50)
-    // 工具规划相关默认
-    viper.SetDefault("ai.agent.tool_plan_max_iter", 1)
-    viper.SetDefault("ai.agent.tool_intent_enabled", true)
+	viper.SetDefault("ai.agent.max_iterations", 10)
+	viper.SetDefault("ai.agent.thinking_enabled", true)
+	viper.SetDefault("ai.agent.memory_enabled", true)
+	viper.SetDefault("ai.agent.memory_length", 50)
+	// 工具规划相关默认
+	viper.SetDefault("ai.agent.tool_plan_max_iter", 1)
+	viper.SetDefault("ai.agent.tool_intent_enabled", true)
 
 	// Embedding defaults
 	viper.SetDefault("ai.embedding.provider", "openai")

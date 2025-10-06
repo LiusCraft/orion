@@ -1,21 +1,21 @@
 package jwt
 
 import (
-    "fmt"
-    "time"
+	"fmt"
+	"time"
 
-    "github.com/golang-jwt/jwt/v5"
-    "github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
-    "github.com/liusCraft/orion/internal/config"
+	"github.com/liusCraft/orion/internal/config"
 )
 
 type Claims struct {
-	UserID      uuid.UUID `json:"userId"`
-	Username    string    `json:"username"`
-	Role        string    `json:"role"`
-	Department  string    `json:"department"`
-	TokenType   string    `json:"tokenType"` // access, refresh
+	UserID     uuid.UUID `json:"userId"`
+	Username   string    `json:"username"`
+	Role       string    `json:"role"`
+	Department string    `json:"department"`
+	TokenType  string    `json:"tokenType"` // access, refresh
 	jwt.RegisteredClaims
 }
 

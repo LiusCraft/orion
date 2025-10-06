@@ -47,7 +47,7 @@ func Recovery() gin.HandlerFunc {
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		
+
 		// 在生产环境中，应该配置具体的允许域名
 		c.Header("Access-Control-Allow-Origin", origin)
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -70,7 +70,7 @@ func RequestID() gin.HandlerFunc {
 		if requestID == "" {
 			requestID = uuid.New().String()
 		}
-		
+
 		c.Header("X-Request-ID", requestID)
 		c.Set("request_id", requestID)
 		c.Next()

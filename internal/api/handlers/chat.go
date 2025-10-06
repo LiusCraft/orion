@@ -14,14 +14,14 @@ import (
 
 	"strings"
 
+	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/schema"
 	"github.com/liusCraft/orion/internal/config"
 	"github.com/liusCraft/orion/internal/constants"
 	"github.com/liusCraft/orion/internal/database/models"
 	"github.com/liusCraft/orion/internal/services/ai"
 	toolsSvc "github.com/liusCraft/orion/internal/services/tools"
 	pkgErrors "github.com/liusCraft/orion/pkg/errors"
-	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/schema"
 )
 
 type ChatHandler struct {
@@ -808,12 +808,12 @@ func (h *ChatHandler) streamAIResponseWithService(c *gin.Context, message models
 
 	// 在有工具调用时，追加一条系统指令，要求总结工具输出给出清晰结论
 	if toolCalled {
-            summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
-                "- 先简要概括关键结果/指标；\n" +
-                "- 给出具体解决步骤或下一步行动；\n" +
-                "- 如工具失败或异常，解释原因与可行的补救办法；\n" +
-                "- 回答力求简洁、重点明确。\n" +
-                "若问题与当前场景不直接相关，也请尽力作答并给出可执行建议。"
+		summarizeHint := "请基于以上工具调用返回的数据和上下文，面向用户输出清晰的中文结论与可执行建议：\n" +
+			"- 先简要概括关键结果/指标；\n" +
+			"- 给出具体解决步骤或下一步行动；\n" +
+			"- 如工具失败或异常，解释原因与可行的补救办法；\n" +
+			"- 回答力求简洁、重点明确。\n" +
+			"若问题与当前场景不直接相关，也请尽力作答并给出可执行建议。"
 		planEino = append(planEino, &schema.Message{Role: schema.System, Content: summarizeHint})
 	}
 
@@ -989,15 +989,15 @@ func (h *ChatHandler) streamAIResponse(c *gin.Context, message models.Message, u
 
 	// 模拟AI处理和响应
 	// TODO: 这里应该集成实际的AI引擎
-    responses := []string{
-        "我理解您的问题",
-        "正在为您分析相关信息",
-        "根据我的知识与工具结果，建议如下：",
-        "1. 检查服务与依赖状态",
-        "2. 验证关键配置是否生效",
-        "3. 查看监控与日志以定位异常",
-        "如需更详细的帮助，请提供具体的错误信息。",
-    }
+	responses := []string{
+		"我理解您的问题",
+		"正在为您分析相关信息",
+		"根据我的知识与工具结果，建议如下：",
+		"1. 检查服务与依赖状态",
+		"2. 验证关键配置是否生效",
+		"3. 查看监控与日志以定位异常",
+		"如需更详细的帮助，请提供具体的错误信息。",
+	}
 
 	fullContent := ""
 	for i, response := range responses {

@@ -13,7 +13,7 @@ func SetupAuthRoutes(rg *gin.RouterGroup, handler *handlers.AuthHandler) {
 		auth.POST("/login", handler.Login)
 		auth.POST("/register", handler.Register)
 		auth.POST("/refresh", handler.RefreshToken)
-		
+
 		// 需要认证的路由
 		authenticated := auth.Group("/")
 		authenticated.Use(middleware.Auth())
@@ -52,7 +52,7 @@ func SetupKnowledgeRoutes(rg *gin.RouterGroup, handler *handlers.KnowledgeHandle
 	{
 		// 分类管理（公开读取，需要认证才能修改）
 		knowledge.GET("/categories", handler.GetCategories)
-		
+
 		authenticated := knowledge.Group("/")
 		authenticated.Use(middleware.Auth())
 		{
@@ -60,16 +60,16 @@ func SetupKnowledgeRoutes(rg *gin.RouterGroup, handler *handlers.KnowledgeHandle
 			authenticated.POST("/categories", handler.CreateCategory)
 			authenticated.PUT("/categories/:id", handler.UpdateCategory)
 			authenticated.DELETE("/categories/:id", handler.DeleteCategory)
-			
+
 			// 文档管理
 			authenticated.POST("/documents", handler.CreateDocument)
 			authenticated.PUT("/documents/:id", handler.UpdateDocument)
 			authenticated.DELETE("/documents/:id", handler.DeleteDocument)
-			
+
 			// 文档搜索
 			authenticated.POST("/documents/search", handler.SearchDocuments)
 		}
-		
+
 		// 文档查看（公开读取）
 		knowledge.GET("/documents", handler.GetDocuments)
 		knowledge.GET("/documents/:id", handler.GetDocument)
@@ -77,23 +77,23 @@ func SetupKnowledgeRoutes(rg *gin.RouterGroup, handler *handlers.KnowledgeHandle
 }
 
 func SetupToolRoutes(rg *gin.RouterGroup, handler *handlers.ToolHandler) {
-    tools := rg.Group("/tools")
-    tools.Use(middleware.Auth()) // 所有工具API都需要认证
-    {
-        // 工具类型与模板
-        tools.GET("/types", handler.GetToolTypes)
-        tools.GET("/types/:type/template", handler.GetToolTemplate)
-        tools.POST("/types/:type/validate", handler.ValidateToolTypeConfig)
-        tools.POST("/test", handler.TestToolConnection)
+	tools := rg.Group("/tools")
+	tools.Use(middleware.Auth()) // 所有工具API都需要认证
+	{
+		// 工具类型与模板
+		tools.GET("/types", handler.GetToolTypes)
+		tools.GET("/types/:type/template", handler.GetToolTemplate)
+		tools.POST("/types/:type/validate", handler.ValidateToolTypeConfig)
+		tools.POST("/test", handler.TestToolConnection)
 
-        // 工具管理
-        tools.GET("", handler.GetTools)
-        tools.GET("/:id", handler.GetTool)
-        tools.POST("", handler.CreateTool)
-        tools.PUT("/:id", handler.UpdateTool)
-        tools.PUT("/:id/toggle", handler.ToggleTool)
-        tools.DELETE("/:id", handler.DeleteTool)
-		
+		// 工具管理
+		tools.GET("", handler.GetTools)
+		tools.GET("/:id", handler.GetTool)
+		tools.POST("", handler.CreateTool)
+		tools.PUT("/:id", handler.UpdateTool)
+		tools.PUT("/:id/toggle", handler.ToggleTool)
+		tools.DELETE("/:id", handler.DeleteTool)
+
 		// 工具执行
 		tools.POST("/:id/execute", handler.ExecuteTool)
 		tools.GET("/executions", handler.GetExecutions)
@@ -102,8 +102,8 @@ func SetupToolRoutes(rg *gin.RouterGroup, handler *handlers.ToolHandler) {
 
 func SetupAdminRoutes(rg *gin.RouterGroup, handler *handlers.AdminHandler) {
 	admin := rg.Group("/admin")
-	admin.Use(middleware.Auth())                    // 需要认证
-	admin.Use(middleware.RequireRole("admin"))     // 需要管理员权限
+	admin.Use(middleware.Auth())               // 需要认证
+	admin.Use(middleware.RequireRole("admin")) // 需要管理员权限
 	{
 		// 用户管理
 		users := admin.Group("/users")
@@ -114,7 +114,7 @@ func SetupAdminRoutes(rg *gin.RouterGroup, handler *handlers.AdminHandler) {
 			users.PUT("/:id", handler.UpdateUser)
 			users.DELETE("/:id", handler.DeleteUser)
 		}
-		
+
 		// 系统配置管理
 		configs := admin.Group("/configs")
 		{
@@ -123,7 +123,7 @@ func SetupAdminRoutes(rg *gin.RouterGroup, handler *handlers.AdminHandler) {
 			configs.PUT("/:id", handler.UpdateSystemConfig)
 			configs.DELETE("/:id", handler.DeleteSystemConfig)
 		}
-		
+
 		// 系统统计
 		admin.GET("/stats", handler.GetSystemStats)
 	}
